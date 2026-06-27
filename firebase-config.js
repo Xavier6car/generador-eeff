@@ -1,25 +1,16 @@
 // ============================================================
 //  CONFIGURACIÓN DE FIREBASE  (guardar datos en la nube)
 // ============================================================
-// Mientras estos valores estén VACÍOS, la app funciona en modo LOCAL
-// (los datos se guardan solo en el navegador de cada equipo).
-//
-// Para activar la nube, sigue los pasos del README.md y pega aquí
-// el objeto "firebaseConfig" que te da la consola de Firebase.
-//
-// Ejemplo ya completado:
-//   apiKey: "AIzaSyD....",
-//   authDomain: "mi-proyecto.firebaseapp.com",
-//   projectId: "mi-proyecto",
-//   storageBucket: "mi-proyecto.appspot.com",
-//   messagingSenderId: "1234567890",
-//   appId: "1:1234567890:web:abc123"
+// Proyecto: eeff-cm
+// La seguridad NO depende de esta apiKey (no es secreta): la dan las
+// REGLAS de Firestore + el inicio de sesión (ver README.md).
 // ============================================================
 window.FIREBASE_CONFIG = {
-  apiKey: "",
-  authDomain: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: ""
+  apiKey: "AIzaSyDweQeNFXWt6qRSbtZS-scjR0TRuM-rTz4",
+  authDomain: "eeff-cm.firebaseapp.com",
+  projectId: "eeff-cm",
+  storageBucket: "eeff-cm.firebasestorage.app",
+  messagingSenderId: "149577564917",
+  appId: "1:149577564917:web:b0dfa6f1938715c096fbbc",
+  measurementId: "G-VKWMFZ1X4H"
 };
