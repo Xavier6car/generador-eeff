@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Generador EEFF - Plantabal</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- Firebase (datos en la nube). Si firebase-config.js queda vacio, la app trabaja en modo LOCAL. -->
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="firebase-config.js"></script>
+<style>
+  :root{
+    --ink:#16201c; --paper:#fbfaf6; --line:#d9d6cb;
+    --moss:#3f6b4f; --moss-d:#2c4d39; --sand:#efe9da;
+    --amber:#c8843a; --red:#a8412f; --ok:#2c7a4f; --blue:#345b80;
+    --mono:'SF Mono',ui-monospace,'Cascadia Code',Menlo,Consolas,monospace;
+    --sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:13px;line-height:1.45}
+  .wrap{max-width:1400px;margin:0 auto;padding:0 20px 80px}
+  header{border-bottom:2px solid var(--ink);padding:20px 20px 14px;background:var(--paper);position:sticky;top:0;z-index:60}
+  header .wrap{padding:0;display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap}
+  .brand h1{font-size:20px;font-weight:800;letter-spacing:-.02em}
+  .brand .sub{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--moss);margin-top:3px}
+  .periods{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;color:#6b6b60}
+  .periods b{color:var(--ink);font-weight:700}
+  select,input,button{font-family:var(--sans);font-size:12px}
+  select,input[type=text]{border:1.5px solid var(--line);background:#fff;padding:5px 8px;border-radius:5px;color:var(--ink)}
+  select:focus,input:focus{outline:none;border-color:var(--moss)}
+  .toolbar{display:flex;gap:12px;flex-wrap:wrap;align-items:stretch;padding:18px 0 6px}
+  .drop{flex:1;min-width:230px;border:2px dashed var(--line);border-radius:9px;padding:13px 15px;background:#fff;transition:.15s;cursor:pointer;position:relative}
+  .drop:hover{border-color:var(--moss);background:#fcfdfb}
+  .drop.set{border-style:solid;border-color:var(--moss);background:#f3f7f3}
+  .drop .k{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--moss);font-weight:700}
+  .drop .t{font-weight:700;margin-top:3px;font-size:13px}
+  .drop .d{font-size:11px;color:#73726a;margin-top:2px}
+  .drop .fname{font-size:11px;color:var(--moss-d);margin-top:5px;font-family:var(--mono);word-break:break-all}
+  .drop input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
+  .actions{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 4px;align-items:center}
+  button.primary{background:var(--moss);color:#fff;border:none;padding:9px 16px;border-radius:6px;font-weight:700;cursor:pointer;transition:.15s}
+  button.primary:hover{background:var(--moss-d)}
+  button.primary:disabled{background:#b8bdb4;cursor:not-allowed}
+  button.ghost{background:#fff;border:1.5px solid var(--line);padding:9px 14px;border-radius:6px;font-weight:600;cursor:pointer;color:var(--ink)}
+  button.ghost:hover{border-color:var(--moss);color:var(--moss-d)}
+  button.danger{color:var(--red);border-color:#e3c3bc}
+  button.sm{padding:4px 9px;font-size:11px}
+  .spacer{flex:1}
+  .tag{font-family:var(--mono);font-size:11px;color:#6b6b60}
+  .status{margin:14px 0;padding:12px 16px;border-radius:8px;font-weight:600;display:none;align-items:center;gap:10px}
+  .status.show{display:flex}
+  .status.ok{background:#eaf4ed;color:var(--ok);border:1px solid #bcdcc6}
+  .status.err{background:#f7ece9;color:var(--red);border:1px solid #e6c5bd}
+  .status.warn{background:#fbf3e6;color:var(--amber);border:1px solid #ecd9b8}
+  .status .big{font-family:var(--mono);font-size:17px;font-weight:800;margin-left:auto}
+  .tabs{display:flex;gap:2px;border-bottom:2px solid var(--ink);margin-top:22px;flex-wrap:wrap}
+  .tab{padding:10px 20px;font-weight:700;cursor:pointer;border:2px solid transparent;border-bottom:none;border-radius:7px 7px 0 0;color:#73726a;font-size:12px;background:transparent;position:relative;top:2px}
+  .tab.active{background:var(--ink);color:var(--paper)}
+  .panel{display:none;padding-top:6px}
+  .panel.active{display:block}
+  .filterbar{display:flex;gap:8px;align-items:center;margin:14px 0 6px;flex-wrap:wrap;padding:10px 12px;background:#fff;border:1px solid var(--line);border-radius:8px}
+  .filterbar label{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#73726a;font-weight:700}
+  .filterbar .count{font-family:var(--mono);font-size:11px;color:#73726a;margin-left:auto}
+  .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;margin-top:8px}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th{text-align:left;font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:#fff;background:var(--ink);padding:8px 10px;font-weight:700;position:sticky;top:0;white-space:nowrap}
+  th.num,td.num{text-align:right;font-variant-numeric:tabular-nums;font-family:var(--mono)}
+  td{padding:5px 10px;border-bottom:1px solid #ece9df;white-space:nowrap}
+  tbody tr:hover{background:#f7f9f6}
+  tr.group td{background:var(--sand);font-weight:800;text-transform:uppercase;font-size:10px;letter-spacing:.07em;color:var(--moss-d);position:sticky}
+  tr.sub td{background:#f6f3ea;font-weight:700;font-size:11px}
+  tr.total td{font-weight:800;border-top:2px solid var(--ink);border-bottom:2px solid var(--ink);background:#fbfaf4}
+  tr.new td{background:#fdf6ee}
+  tr.new:hover td{background:#fbf0e2}
+  td.code{font-family:var(--mono);font-size:11px;color:#5a5a50}
+  td.grr{font-family:var(--mono);font-size:11px;color:var(--blue)}
+  .neg{color:var(--red)}
+  .pill{display:inline-block;font-family:var(--mono);font-size:9px;padding:2px 6px;border-radius:20px;background:var(--sand);color:var(--moss-d);font-weight:700;letter-spacing:.04em}
+  .pill.c0{background:#e7efe9}.pill.c1{background:#eef0e3}.pill.c2{background:#f3ecdd}.pill.c3{background:#f4e6df}
+  .pill.esf{background:#e4ecf2;color:var(--blue)}.pill.eri{background:#eaf0e7;color:var(--moss-d)}
+  .pill.new{background:#f4e6df;color:var(--amber)}
+  .clasif-sel{border:1.5px solid var(--amber);background:#fffaf3;padding:3px 6px;border-radius:5px;font-size:11px;max-width:230px}
+  .empty{text-align:center;padding:60px 20px;color:#9a988d}
+  .empty .big{font-size:14px;font-weight:700;color:#73726a}
+  .note{font-size:11px;color:#73726a;margin-top:6px}
+  .modal-bg{display:none;position:fixed;inset:0;background:rgba(22,32,28,.5);z-index:100;align-items:center;justify-content:center;padding:20px}
+  .modal-bg.show{display:flex}
+  .modal{background:var(--paper);border-radius:12px;max-width:680px;width:100%;max-height:85vh;overflow-y:auto;border:2px solid var(--ink)}
+  .modal h2{font-size:16px;padding:16px 20px;border-bottom:1.5px solid var(--line)}
+  .modal .body{padding:16px 20px}
+  .modal .foot{padding:12px 20px;border-top:1.5px solid var(--line);display:flex;justify-content:flex-end;gap:8px}
+  .combo-row{display:flex;gap:6px;align-items:center;padding:6px 0;border-bottom:1px solid #ece9df;font-size:11px}
+  .combo-row .vals{flex:1;font-family:var(--mono);font-size:10px;color:#5a5a50}
+  .addgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+  .addgrid input,.addgrid select{width:100%}
+  .kpi{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}
+  .kpicard{flex:1;min-width:150px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:11px 14px}
+  .kpicard .l{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:#73726a}
+  .kpicard .v{font-size:17px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:3px;font-family:var(--mono)}
+  /* celda de clasificacion editable inline */
+  td.editable{cursor:pointer;position:relative;transition:.1s;border-left:2px solid transparent}
+  td.editable:hover{background:#fffaf3;border-left:2px solid var(--amber)}
+  td.editable::after{content:'\270E';opacity:0;font-size:10px;color:var(--amber);margin-left:5px;transition:.1s}
+  td.editable:hover::after{opacity:.7}
+  td.editing{background:#fffaf3;padding:2px 4px}
+  td.editing select{width:100%;border:1.5px solid var(--amber);font-size:11px;padding:3px 4px}
+  /* resumen macro */
+  .macro-title{font-size:12px;font-weight:800;color:var(--blue);margin:18px 0 4px;letter-spacing:.01em}
+  table.macro{font-size:11px}
+  table.macro th{background:var(--blue)}
+  table.macro th.lbl{background:var(--blue)}
+  table.macro tr.gt td{background:#dde6ef;font-weight:800;border-top:2px solid var(--blue);border-bottom:2px solid var(--blue)}
+  table.macro td.rowlbl{font-weight:600;background:#fff}
+  table.macro tr:hover td.rowlbl{background:#f7f9f6}
+  .concil{background:#eef2f7;border:1px solid #c9d6e3;border-radius:8px;margin-top:16px;overflow:hidden}
+  .concil table{font-size:11px}
+  .concil th{background:var(--blue)}
+  .concil tr.hl td{background:#dde6ef;font-weight:800}
+  .valbar{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+  .valcard{flex:1;min-width:200px;border-radius:8px;padding:12px 16px;border:1px solid}
+  .valcard.ok{background:#eaf4ed;border-color:#bcdcc6}
+  .valcard.err{background:#f7ece9;border-color:#e6c5bd}
+  .valcard .l{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.1em}
+  .valcard .v{font-size:16px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:3px;font-family:var(--mono)}
+  .valcard.ok .v{color:var(--ok)}.valcard.err .v{color:var(--red)}
+  /* selector de compañia + estado nube */
+  .cobar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .cobar .co-k{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--moss);font-weight:700}
+  .cobar select{min-width:150px;font-weight:700;border-color:var(--moss)}
+  .cloud-badge{font-family:var(--mono);font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;white-space:nowrap}
+  .cloud-badge.ok{background:#eaf4ed;color:var(--ok)}
+  .cloud-badge.local{background:#fbf3e6;color:var(--amber)}
+  .cloud-badge.err{background:#f7ece9;color:var(--red)}
+  /* pantalla de inicio de sesion (solo cuando hay nube) */
+  .login-bg{display:none;position:fixed;inset:0;background:var(--paper);z-index:200;align-items:center;justify-content:center;padding:20px}
+  .login-bg.show{display:flex}
+  .login-card{background:#fff;border:2px solid var(--ink);border-radius:12px;max-width:360px;width:100%;padding:26px}
+  .login-card h2{font-size:18px;margin-bottom:4px}
+  .login-card .sub{font-size:11px;color:#73726a;margin-bottom:18px;font-family:var(--mono)}
+  .login-card input{width:100%;margin-bottom:10px;padding:9px 11px;font-size:13px}
+  .login-card .err{color:var(--red);font-size:12px;min-height:16px;margin-top:6px}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="brand">
+      <h1>Generador de Estados Financieros</h1>
+      <div class="sub">Plantabal &middot; ESF + ERI &middot; validacion a cero</div>
+    </div>
+    <div class="cobar">
+      <span class="co-k">Compañía</span>
+      <select id="coSelect"></select>
+      <button class="ghost sm" id="btnCoManage">Gestionar</button>
+      <span class="cloud-badge local" id="cloudBadge">● Local (este navegador)</span>
+      <button class="ghost sm" id="btnLogout" style="display:none">Salir</button>
+    </div>
+    <div class="periods">
+      <span>Mes: <select id="periodMonth"><option value="">--</option><option>Enero</option><option>Febrero</option><option>Marzo</option><option>Abril</option><option>Mayo</option><option>Junio</option><option>Julio</option><option>Agosto</option><option>Septiembre</option><option>Octubre</option><option>Noviembre</option><option>Diciembre</option></select></span>
+      <span>Ano: <input type="text" id="periodYear" placeholder="2025" style="width:60px" maxlength="4"></span>
+    </div>
+  </div>
+</header>
+<div class="wrap">
+  <div class="toolbar">
+    <label class="drop" id="dropEeff">
+      <div class="k">Archivo 1 &middot; Saldos SAP</div>
+      <div class="t">EEFF (mes actual vs anterior)</div>
+      <div class="d">Todos los saldos. De aqui salen ESF y ERI.</div>
+      <div class="fname" id="nameEeff"></div>
+      <input type="file" id="fileEeff" accept=".xlsx,.xls,.XLSX">
+    </label>
+    <label class="drop" id="dropGrr">
+      <div class="k">Archivo 2 &middot; Costos gerenciales</div>
+      <div class="t">GRR3 (acumulado del ano)</div>
+      <div class="d">Aporta el nivel de Costo 0/1/2/3.</div>
+      <div class="fname" id="nameGrr"></div>
+      <input type="file" id="fileGrr" accept=".xlsx,.xls">
+    </label>
+  </div>
+  <div class="actions">
+    <button class="primary" id="btnBuild" disabled>Generar estados</button>
+    <button class="ghost" id="btnSave" disabled>Guardar periodo</button>
+    <button class="ghost" id="btnExport" disabled>Descargar Excel</button>
+    <button class="ghost" onclick="openTplManager()">Gestionar clasificaciones</button>
+    <div class="spacer"></div>
+    <span class="tag" id="savedTag"></span>
+    <button class="ghost danger" onclick="resetTpl()">Restaurar plantilla</button>
+  </div>
+  <div class="status" id="status"></div>
+  <div class="tabs">
+    <div class="tab active" data-tab="main">Detalle (ESF + ERI)</div>
+    <div class="tab" data-tab="macro">Resumen macro</div>
+    <div class="tab" data-tab="hist">Historico mensual</div>
+  </div>
+  <div class="panel active" id="panel-main">
+    <div id="main-content"><div class="empty"><div class="big">Carga EEFF y GRR3, luego Generar estados</div><div>ESF y ERI apareceran juntos con el formato de la plantilla.</div></div></div>
+  </div>
+  <div class="panel" id="panel-macro">
+    <div id="macro-content"><div class="empty"><div class="big">Resumen a nivel macro</div><div>Totales por clasificacion, conciliacion de utilidad y validacion del 15%.</div></div></div>
+  </div>
+  <div class="panel" id="panel-hist">
+    <div id="hist-content"></div>
+  </div>
+</div>
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <h2 id="modalTitle">Gestionar clasificaciones</h2>
+    <div class="body" id="modalBody"></div>
+    <div class="foot"><button class="ghost" onclick="closeModal()">Cerrar</button></div>
+  </div>
+</div>
+<div class="modal-bg" id="coModalBg">
+  <div class="modal">
+    <h2 id="coModalTitle">Compañías</h2>
+    <div class="body" id="coModalBody"></div>
+    <div class="foot"><button class="ghost" onclick="closeCoModal()">Cerrar</button></div>
+  </div>
+</div>
+<div class="login-bg" id="loginOverlay">
+  <div class="login-card">
+    <h2>Iniciar sesión</h2>
+    <div class="sub">Generador de Estados Financieros · acceso a datos en la nube</div>
+    <input type="email" id="loginEmail" placeholder="correo@empresa.com" autocomplete="username">
+    <input type="password" id="loginPass" placeholder="contraseña" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="primary" style="width:100%" onclick="doLogin()">Entrar</button>
+    <div class="err" id="loginErr"></div>
+  </div>
+</div>
+<script>
+const REF_SEED = {"111100":["ESF","Activo corriente","Equivalentes y efectivo","Activo"],"112100":["ESF","Activo corriente","Equivalentes y efectivo","Activo"],"112200":["ESF","Activo corriente","Equivalentes y efectivo","Activo"],"112210":["ESF","Activo corriente","Equivalentes y efectivo","Activo"],"112300":["ESF","Activo corriente","Equivalentes y efectivo","Activo"],"112310":["ESF","Activo corriente","Equivalentes y efectivo","Activo"],"114100":["ESF","Activo corriente","Equivalentes y efectivo","Activo"],"114200":["ESF","Activo corriente","Equivalentes y efectivo","Activo"],"114300":["ESF","Activo corriente","Equivalentes y efectivo","Activo"],"115100":["ESF","Activo corriente","Equivalentes y efectivo","Activo"],"116100":["ESF","Activo corriente","Equivalentes y efectivo","Activo"],"116200":["ESF","Activo corriente","Equivalentes y efectivo","Activo"],"116300":["ESF","Activo corriente","Equivalentes y efectivo","Activo"],"117100":["ESF","Activo corriente","Equivalentes y efectivo","Activo"],"118100":["ESF","Activo corriente","Equivalentes y efectivo","Activo"],"121100":["ESF","Activo corriente","Cuentas a cobrar clientes","Activo"],"121111":["ESF","Activo corriente","Cuentas a cobrar clientes","Activo"],"121200":["ESF","Activo corriente","Cuentas a cobrar clientes","Activo"],"121300":["ESF","Activo corriente","Cuentas a cobrar clientes","Activo"],"122110":["ESF","Activo corriente","Cuentas por cobrar a compañias relacionadas","Activo"],"122120":["ESF","Activo corriente","Cuentas por cobrar a compañias relacionadas","Activo"],"122130":["ESF","Activo corriente","Cuentas por cobrar a compañias relacionadas","Activo"],"122131":["ESF","Activo corriente","Cuentas por cobrar a compañias relacionadas","Activo"],"122190":["ESF","Activo corriente","Cuentas por cobrar a compañias relacionadas","Activo"],"123700":["ESF","Activo corriente","Cuentas por cobrar a compañias relacionadas","Activo"],"124110":["ESF","Activo corriente","Cuentas a cobrar clientes","Activo"],"124111":["ESF","Activo corriente","Cuentas a cobrar clientes","Activo"],"124200":["ESF","Activo corriente","Otras cuentas por cobrar","Activo"],"124300":["ESF","Activo corriente","Otras cuentas por cobrar","Activo"],"124301":["ESF","Activo corriente","Otras cuentas por cobrar","Activo"],"124302":["ESF","Activo corriente","Otras cuentas por cobrar","Activo"],"124303":["ESF","Activo corriente","Otras cuentas por cobrar","Activo"],"124400":["ESF","Activo corriente","Otras cuentas por cobrar","Activo"],"124402":["ESF","Activo corriente","Otras cuentas por cobrar","Activo"],"125100":["ESF","Activo corriente","Otras cuentas por cobrar","Activo"],"125200":["ESF","Activo corriente","Otras cuentas por cobrar","Activo"],"125300":["ESF","Activo corriente","Otras cuentas por cobrar","Activo"],"125301":["ESF","Activo corriente","Otras cuentas por cobrar","Activo"],"125400":["ESF","Activo corriente","Cuentas a cobrar clientes","Activo"],"125401":["ESF","Activo corriente","Cuentas a cobrar clientes","Activo"],"126100":["ESF","Activo corriente","Otras cuentas por cobrar","Activo"],"126200":["ESF","Activo corriente","Otras cuentas por cobrar","Activo"],"126250":["ESF","Activo corriente","Otras cuentas por cobrar","Activo"],"126260":["ESF","Activo corriente","Otras cuentas por cobrar","Activo"],"126300":["ESF","Activo corriente","Otras cuentas por cobrar","Activo"],"126400":["ESF","Activo corriente","Otras cuentas por cobrar","Activo"],"127100":["ESF","Activo corriente","Otras cuentas por cobrar","Activo"],"127110":["ESF","Activo corriente","Otras cuentas por cobrar","Activo"],"127111":["ESF","Activo corriente","Otras cuentas por cobrar","Activo"],"127120":["ESF","Activo corriente","Otras cuentas por cobrar","Activo"],"127200":["ESF","Activo corriente","Otras cuentas por cobrar","Activo"],"127300":["ESF","Activo corriente","Otras cuentas por cobrar","Activo"],"127400":["ESF","Activo corriente","Otras cuentas por cobrar","Activo"],"127510":["ESF","Activo corriente","Cuentas a cobrar clientes","Activo"],"127900":["ESF","Activo corriente","Cuentas a cobrar clientes","Activo"],"127600":["ESF","Activo corriente","Otras cuentas por cobrar","Activo"],"131100":["ESF","Activo corriente","Otros Activos Corrientes","Activo"],"132100":["ESF","Activo corriente","Impuestos a recuperar","Activo"],"132110":["ESF","Activo corriente","Impuestos a recuperar","Activo"],"132200":["ESF","Activo corriente","Impuestos a recuperar","Activo"],"132300":["ESF","Activo corriente","Impuestos a recuperar","Activo"],"132400":["ESF","Activo corriente","Impuestos a recuperar","Activo"],"132600":["ESF","Activo corriente","Impuestos a recuperar","Activo"],"132820":["ESF","Activo corriente","Impuestos a recuperar","Activo"],"132840":["ESF","Activo corriente","Impuestos a recuperar","Activo"],"132990":["ESF","Activo corriente","Impuestos a recuperar","Activo"],"133112":["ESF","Activo corriente","Impuestos a recuperar","Activo"],"133122":["ESF","Activo corriente","Impuestos a recuperar","Activo"],"133150":["ESF","Activo corriente","Propiedades, planta y equipo","Activo"],"141200":["ESF","Activo corriente","Inventarios","Activo"],"142100":["ESF","Activo corriente","Inventarios","Activo"],"142200":["ESF","Activo corriente","Inventarios","Activo"],"143000":["ESF","Activo corriente","Inventarios","Activo"],"143100":["ESF","Activo corriente","Inventarios","Activo"],"143200":["ESF","Activo corriente","Inventarios","Activo"],"143300":["ESF","Activo corriente","Inventarios","Activo"],"144100":["ESF","Activo corriente","Inventarios","Activo"],"144300":["ESF","Activo corriente","Inventarios","Activo"],"145100":["ESF","Activo corriente","Inventarios","Activo"],"145200":["ESF","Activo corriente","Inventarios","Activo"],"145300":["ESF","Activo corriente","Inventarios","Activo"],"147400":["ESF","Activo corriente","Inventarios","Activo"],"149220":["ESF","Activo corriente","Inventarios","Activo"],"151100":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"151110":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"151130":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"152100":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"152130":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"153100":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"153120":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"153600":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"153610":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"154100":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"154120":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"154130":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"154410":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"154600":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"154610":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"154630":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"154910":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"156100":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"156600":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"156610":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"157100":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"157600":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"157610":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"158100":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"158120":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"158600":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"158610":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"159100":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"159120":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"159600":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"159610":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"160100":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"160130":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"160410":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"160600":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"160610":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"160630":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"160910":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"161100":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"161110":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"161120":["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],"181140":["ESF","Activo no corriente","Inversiones en subsidiarias","Activo"],"183000":["ESF","Activo corriente","Otros Activos Corrientes","Activo"],"183100":["ESF","Activo corriente","Otros Activos Corrientes","Activo"],"183200":["ESF","Activo corriente","Inventarios","Activo"],"183300":["ESF","Activo corriente","Inventarios","Activo"],"183400":["ESF","Activo corriente","Inventarios","Activo"],"183700":["ESF","Activo corriente","Inventarios","Activo"],"184100":["ESF","Activo no corriente","Activos intangibles","Activo"],"184600":["ESF","Activo no corriente","Activos intangibles","Activo"],"184610":["ESF","Activo no corriente","Activos intangibles","Activo"],"185100":["ESF","Activo no corriente","Activos por derecho de uso","Activo"],"185110":["ESF","Activo no corriente","Activos por derecho de uso","Activo"],"185120":["ESF","Activo no corriente","Activos por derecho de uso","Activo"],"185600":["ESF","Activo no corriente","Activos por derecho de uso","Activo"],"185610":["ESF","Activo no corriente","Activos por derecho de uso","Activo"],"185620":["ESF","Activo no corriente","Activos por derecho de uso","Activo"],"186100":["ESF","Activo no corriente","Activos por derecho de uso","Activo"],"186110":["ESF","Activo no corriente","Activos por derecho de uso","Activo"],"186120":["ESF","Activo no corriente","Activos por derecho de uso","Activo"],"186600":["ESF","Activo no corriente","Activos por derecho de uso","Activo"],"186610":["ESF","Activo no corriente","Activos por derecho de uso","Activo"],"186620":["ESF","Activo no corriente","Activos por derecho de uso","Activo"],"191200":["ESF","Activo no corriente","Activos biológicos","Activo"],"191400":["ESF","Activo no corriente","Activos biológicos","Activo"],"192100":["ESF","Activo no corriente","Activos biológicos","Activo"],"192200":["ESF","Activo no corriente","Activos biológicos","Activo"],"192300":["ESF","Activo no corriente","Activos biológicos","Activo"],"192500":["ESF","Activo no corriente","Activos biológicos","Activo"],"192600":["ESF","Activo no corriente","Activos biológicos","Activo"],"221100":["ESF","Pasivo corriente","Cuentas por pagar proveedores","Pasivo"],"221200":["ESF","Pasivo corriente","Cuentas por pagar proveedores","Pasivo"],"221300":["ESF","Pasivo corriente","Cuentas por pagar proveedores","Pasivo"],"221400":["ESF","Pasivo corriente","Cuentas por pagar proveedores","Pasivo"],"221600":["ESF","Pasivo corriente","Cuentas por pagar proveedores","Pasivo"],"222125":["ESF","Pasivo corriente","Cuentas por pagar proveedores","Pasivo"],"222140":["ESF","Pasivo corriente","Cuentas por pagar compañias relacionadas","Pasivo"],"222142":["ESF","Pasivo corriente","Cuentas por pagar compañias relacionadas","Pasivo"],"222155":["ESF","Pasivo corriente","Cuentas por pagar compañias relacionadas","Pasivo"],"223700":["ESF","Pasivo corriente","Cuentas por pagar compañias relacionadas","Pasivo"],"224100":["ESF","Pasivo corriente","Cuentas por pagar proveedores","Pasivo"],"225100":["ESF","Pasivo corriente","Beneficios a empleados","Pasivo"],"225150":["ESF","Pasivo corriente","Beneficios a empleados","Pasivo"],"225200":["ESF","Pasivo corriente","Beneficios a empleados","Pasivo"],"225250":["ESF","Pasivo corriente","Beneficios a empleados","Pasivo"],"225300":["ESF","Pasivo corriente","Beneficios a empleados","Pasivo"],"225400":["ESF","Pasivo corriente","Beneficios a empleados","Pasivo"],"225450":["ESF","Pasivo corriente","Beneficios a empleados","Pasivo"],"226200":["ESF","Pasivo corriente","Otros impuestos por pagar","Pasivo"],"227150":["ESF","Pasivo corriente","Otros impuestos por pagar","Pasivo"],"227160":["ESF","Pasivo corriente","Otros impuestos por pagar","Pasivo"],"227200":["ESF","Pasivo corriente","Otros impuestos por pagar","Pasivo"],"227250":["ESF","Pasivo corriente","Otros impuestos por pagar","Pasivo"],"227301":["ESF","Pasivo corriente","Otros impuestos por pagar","Pasivo"],"227300":["ESF","Pasivo corriente","Otros impuestos por pagar","Pasivo"],"227350":["ESF","Pasivo corriente","Otros impuestos por pagar","Pasivo"],"227400":["ESF","Pasivo corriente","Otros impuestos por pagar","Pasivo"],"227470":["ESF","Pasivo corriente","Otros impuestos por pagar","Pasivo"],"227471":["ESF","Pasivo corriente","Otros impuestos por pagar","Pasivo"],"227472":["ESF","Pasivo corriente","Otros impuestos por pagar","Pasivo"],"227473":["ESF","Pasivo corriente","Otros impuestos por pagar","Pasivo"],"227474":["ESF","Pasivo corriente","Otros impuestos por pagar","Pasivo"],"227475":["ESF","Pasivo corriente","Otros impuestos por pagar","Pasivo"],"231100":["ESF","Pasivo corriente","Beneficios a empleados","Pasivo"],"231110":["ESF","Pasivo corriente","Beneficios a empleados","Pasivo"],"231130":["ESF","Pasivo corriente","Beneficios a empleados","Pasivo"],"231140":["ESF","Pasivo corriente","Beneficios a empleados","Pasivo"],"231150":["ESF","Pasivo corriente","Beneficios a empleados","Pasivo"],"231160":["ESF","Pasivo corriente","Beneficios a empleados","Pasivo"],"231161":["ESF","Pasivo corriente","Beneficios a empleados","Pasivo"],"231162":["ESF","Pasivo corriente","Beneficios a empleados","Pasivo"],"231163":["ESF","Pasivo corriente","Beneficios a empleados","Pasivo"],"231200":["ESF","Pasivo corriente","Beneficios a empleados","Pasivo"],"231230":["ESF","Pasivo corriente","Beneficios a empleados","Pasivo"],"231240":["ESF","Pasivo corriente","Beneficios a empleados","Pasivo"],"231241":["ESF","Pasivo corriente","Beneficios a empleados","Pasivo"],"231250":["ESF","Pasivo corriente","Beneficios a empleados","Pasivo"],"232101":["ESF","Pasivo corriente","Cuentas por pagar proveedores","Pasivo"],"232102":["ESF","Pasivo corriente","Cuentas por pagar proveedores","Pasivo"],"232104":["ESF","Pasivo corriente","Cuentas por pagar proveedores","Pasivo"],"232105":["ESF","Pasivo corriente","Cuentas por pagar proveedores","Pasivo"],"232106":["ESF","Pasivo corriente","Cuentas por pagar proveedores","Pasivo"],"232110":["ESF","Pasivo corriente","Cuentas por pagar proveedores","Pasivo"],"232120":["ESF","Pasivo corriente","Otras cuentas por pagar","Pasivo"],"232130":["ESF","Pasivo corriente","Otras cuentas por pagar","Pasivo"],"232135":["ESF","Pasivo corriente","Otras cuentas por pagar","Pasivo"],"232150":["ESF","Pasivo corriente","Otras cuentas por pagar","Pasivo"],"232172":["ESF","Pasivo corriente","Cuentas por pagar compañias relacionadas","Pasivo"],"232180":["ESF","Pasivo corriente","Otras cuentas por pagar","Pasivo"],"232182":["ESF","Pasivo corriente","Otras cuentas por pagar","Pasivo"],"232183":["ESF","Pasivo corriente","Otras cuentas por pagar","Pasivo"],"232185":["ESF","Pasivo corriente","Otros impuestos por pagar","Pasivo"],"232186":["ESF","Pasivo corriente","Otros impuestos por pagar","Pasivo"],"232190":["ESF","Pasivo corriente","Beneficios a empleados","Pasivo"],"232195":["ESF","Pasivo no corriente","Pasivos por arrendamiento","Pasivo"],"232196":["ESF","Pasivo no corriente","Pasivos por arrendamiento","Pasivo"],"232197":["ESF","Pasivo no corriente","Pasivos por arrendamiento","Pasivo"],"232198":["ESF","Pasivo no corriente","Pasivos por arrendamiento","Pasivo"],"232200":["ESF","Pasivo no corriente","Provisiones","Pasivo"],"232201":["ESF","Pasivo no corriente","Cuentas por pagar compañias relacionadas","Pasivo"],"241200":["ESF","Pasivo corriente","Impuesto a la renta a pagar","Pasivo"],"242100":["ESF","Pasivo no corriente","Pasivo por impuesto a la renta diferido","Pasivo"],"242400":["ESF","Pasivo no corriente","Pasivo por impuesto a la renta diferido","Pasivo"],"261201":["ESF","Pasivo no corriente","Cuentas por pagar compañias relacionadas","Pasivo"],"262100":["ESF","Pasivo no corriente","Beneficios a empleados","Pasivo"],"262200":["ESF","Pasivo no corriente","Beneficios a empleados","Pasivo"],"262400":["ESF","Pasivo no corriente","Beneficios a empleados","Pasivo"],"262600":["ESF","Pasivo no corriente","Beneficios a empleados","Pasivo"],"271100":["ESF","Pasivo no corriente","Pasivos por arrendamiento","Pasivo"],"271110":["ESF","Pasivo no corriente","Pasivos por arrendamiento","Pasivo"],"271120":["ESF","Pasivo no corriente","Pasivos por arrendamiento","Pasivo"],"271130":["ESF","Pasivo no corriente","Pasivos por arrendamiento","Pasivo"],"291100":["ESF","Patrimonio","Capital social","Patrimonio"],"292100":["ESF","Patrimonio","","Patrimonio"],"293200":["ESF","Patrimonio","Resultados acumulados","Patrimonio"],"293300":["ESF","Patrimonio","Resultados acumulados","Patrimonio"],"293500":["ESF","Patrimonio","Resultados acumulados","Patrimonio"],"293600":["ESF","Patrimonio","Resultados acumulados","Patrimonio"],"294100":["ESF","Patrimonio","Reserva Legal","Patrimonio"],"310100":["ERI","Ingresos ordinarios","Exportaciones","Ingresos ordinarios"],"320100":["ERI","Ingresos ordinarios","Exportaciones","Ingresos ordinarios"],"321100":["ERI","Ingresos ordinarios","Exportaciones","Ingresos ordinarios"],"322100":["ERI","Ingresos ordinarios","Exportaciones","Ingresos ordinarios"],"322101":["ERI","Ingresos ordinarios","Exportaciones","Ingresos ordinarios"],"350450":["ERI","Ingresos ordinarios","Exportaciones","Ingresos ordinarios"],"410100":["ERI","Costo","Costo 0","Costo"],"420100":["ERI","Costo","Costo 0","Costo"],"420250":["ERI","Costo","Costo 0","Costo"],"420300":["ERI","Costo","Costo 0","Costo"],"420350":["ERI","Costo","Costo 0","Costo"],"420352":["ERI","Costo","","Costo"],"420360":["ERI","Costo","Costo 0","Costo"],"420390":["ERI","Costo","Costo 0","Costo"],"420450":["ERI","Gasto","Costo 0","Costo"],"430100":["ERI","Costo","Costo 0","Costo"],"430102":["ERI","Costo","Costo 0","Costo"],"430200":["ERI","Costo","Costo 0","Costo"],"430300":["ERI","Costo","Costo 0","Costo"],"430400":["ERI","Costo","Costo 0","Costo"],"430420":["ERI","Costo","Costo 0","Costo"],"440250":["ERI","Costo","Costo 0","Costo"],"440100":["ERI","Costo","Costo 0","Costo"],"440350":["ERI","Costo","Costo 0","Costo"],"440300":["ERI","Costo","Costo 0","Costo"],"440400":["ERI","Costo","Costo 0","Costo"],"440500":["ERI","Costo","Costo 0","Costo"],"440550":["ERI","Costo","","Costo"],"440600":["ERI","Costo","Costo 0","Costo"],"440750":["ERI","Costo","Costo 0","Costo"],"450100":["ERI","Costo","Costo 0","Costo"],"450150":["ERI","Costo","Costo 0","Costo"],"450250":["ERI","Costo","Costo 0","Costo"],"450252":["ERI","Costo","Costo 0","Costo"],"450300":["ERI","Costo","Costo 0","Costo"],"450350":["ERI","Costo","Costo 0","Costo"],"450400":["ERI","Costo","Costo 0","Costo"],"450500":["ERI","Costo","","Costo"],"450550":["ERI","Costo","Costo 0","Costo"],"450600":["ERI","Costo","Costo 0","Costo"],"460150":["ERI","Costo","Costo 0","Costo"],"460300":["ERI","Costo","Costo 0","Costo"],"462100":["ERI","Costo","Costo 0","Costo"],"462110":["ERI","Costo","Costo 0","Costo"],"462150":["ERI","Costo","Costo 0","Costo"],"462200":["ERI","Costo","Costo 0","Costo"],"465000":["ERI","Costo","Costo 0","Costo"],"480130":["ERI","Costo","","Costo"],"480150":["ERI","Costo","Costo 0","Costo"],"480152":["ERI","Costo","Costo 0","Costo"],"480200":["ERI","Otros ingresos","Ganancia activo biológico","Otros ingresos"],"480250":["ERI","Otros Ingresos/gasto","Ganancia activo biológico","Otros Ingresos/gasto"],"480260":["ERI","Otros Ingresos/gasto","Ganancia activo biológico","Otros Ingresos/gasto"],"480270":["ERI","Otros Ingresos/gasto","Ganancia activo biológico","Otros Ingresos/gasto"],"480540":["ERI","Costo","","Costo"],"490100":["ERI","Costo","Costo 0","Costo"],"490160":["ERI","Costo","Costo 0","Costo"],"490200":["ERI","Costo","Costo 0","Costo"],"490300":["ERI","Costo","Costo 0","Costo"],"490350":["ERI","Costo","Costo 0","Costo"],"490360":["ERI","Costo","","Costo"],"510100":["ERI","Costo","Costo 1","Costo"],"510200":["ERI","Costo","Costo 1","Costo"],"510250":["ERI","Costo","Costo 1","Costo"],"510260":["ERI","Costo","Costo 1","Costo"],"510270":["ERI","Costo","Costo 1","Costo"],"510300":["ERI","Costo","Costo 1","Costo"],"510600":["ERI","Costo","Costo 1","Costo"],"530100":["ERI","Costo","Costo 1","Costo"],"530105":["ERI","Costo","Costo 1","Costo"],"530110":["ERI","Costo","Costo 1","Costo"],"530120":["ERI","Costo","Costo 1","Costo"],"530130":["ERI","Costo","Costo 1","Costo"],"530135":["ERI","Costo","Costo 1","Costo"],"530136":["ERI","Costo","Costo 1","Costo"],"530150":["ERI","Costo","Costo 1","Costo"],"530160":["ERI","Costo","Costo 1","Costo"],"530170":["ERI","Costo","Costo 1","Costo"],"530180":["ERI","Costo","Costo 1","Costo"],"530200":["ERI","Costo","Costo 1","Costo"],"530210":["ERI","Costo","Costo 1","Costo"],"530300":["ERI","Costo","Costo 1","Costo"],"610100":["ERI","Costo","","Costo"],"610120":["ERI","Gasto","Costo 3","Gasto"],"610110":["ERI","Costo","","Costo"],"610200":["ERI","Costo","","Costo"],"610210":["ERI","Costo","","Costo"],"610220":["ERI","Costo","","Costo"],"610230":["ERI","Costo","","Costo"],"610232":["ERI","Costo","","Costo"],"610234":["ERI","Costo","","Costo"],"610235":["ERI","Gasto","","Gasto"],"610236":["ERI","Costo","","Costo"],"610237":["ERI","Costo","","Costo"],"610260":["ERI","Costo","","Costo"],"610270":["ERI","Costo","","Costo"],"610280":["ERI","Costo","","Costo"],"610290":["ERI","Costo","","Costo"],"610300":["ERI","Costo","","Costo"],"610310":["ERI","Costo","","Costo"],"610320":["ERI","Costo","","Costo"],"610330":["ERI","Costo","","Costo"],"610400":["ERI","Costo","","Costo"],"610410":["ERI","Costo","","Costo"],"610420":["ERI","Costo","","Costo"],"610430":["ERI","Costo","","Costo"],"610440":["ERI","Costo","","Costo"],"610450":["ERI","Costo","","Costo"],"610460":["ERI","Gasto","","Gasto"],"610470":["ERI","Gasto","","Gasto"],"610900":["ERI","Costo","","Costo"],"620100":["ERI","Costo","","Costo"],"620110":["ERI","Costo","","Costo"],"620120":["ERI","Costo","","Costo"],"620130":["ERI","Costo","","Costo"],"620140":["ERI","Costo","","Costo"],"620150":["ERI","Costo","","Costo"],"623100":["ERI","Gasto","","Gasto"],"623110":["ERI","Gasto","","Costo"],"623120":["ERI","Gasto","","Costo"],"625100":["ERI","Costo","","Costo"],"625120":["ERI","Costo","","Costo"],"625110":["ERI","Costo","","Costo"],"625140":["ERI","Costo","","Costo"],"625150":["ERI","Costo","","Costo"],"625160":["ERI","Costo","","Costo"],"626100":["ERI","Costo","","Costo"],"626110":["ERI","Costo","","Costo"],"626130":["ERI","Costo","","Costo"],"626140":["ERI","Costo","","Costo"],"626150":["ERI","Gasto","","Gasto"],"626160":["ERI","Costo","Costo 1","Costo"],"626165":["ERI","Costo","Costo 1","Costo"],"626240":["ERI","Costo","","Costo"],"626290":["ERI","Costo","","Costo"],"626800":["ERI","Costo","","Costo"],"627200":["ERI","Gasto","","Gasto"],"630105":["ERI","Costo","","Costo"],"630110":["ERI","Costo","","Costo"],"630120":["ERI","Costo","","Costo"],"630130":["ERI","Gasto","","Gasto"],"630140":["ERI","Gasto","","Gasto"],"630150":["ERI","Costo","","Costo"],"630160":["ERI","Costo","","Costo"],"630170":["ERI","Costo","","Costo"],"630180":["ERI","Gasto","","Costo"],"630190":["ERI","Gasto","","Costo"],"630200":["ERI","Costo","","Costo"],"630210":["ERI","Costo","","Costo"],"630230":["ERI","Costo","","Costo"],"630240":["ERI","Gasto","","Gasto"],"630250":["ERI","Costo","","Costo"],"630260":["ERI","Costo","","Costo"],"630270":["ERI","Costo","","Costo"],"630290":["ERI","Costo","","Costo"],"630300":["ERI","Costo","","Costo"],"630310":["ERI","Costo","","Costo"],"630330":["ERI","Costo","","Costo"],"630340":["ERI","Gasto","","Costo"],"630350":["ERI","Costo","","Costo"],"630360":["ERI","Gasto","","Gasto"],"630370":["ERI","Gasto","","Gasto"],"630400":["ERI","Gasto","","Gasto"],"630410":["ERI","Costo","","Costo"],"630419":["ERI","Costo","","Costo"],"630420":["ERI","Costo","","Costo"],"630423":["ERI","Costo","","Costo"],"630424":["ERI","Costo","","Costo"],"630430":["ERI","Gasto","","Gasto"],"630450":["ERI","Gasto","","Gasto"],"630500":["ERI","Costo","","Costo"],"631100":["ERI","Costo","","Costo"],"631110":["ERI","Costo","","Costo"],"631150":["ERI","Costo","","Costo"],"631510":["ERI","Costo","","Costo"],"631500":["ERI","Costo","","Costo"],"631520":["ERI","Costo","","Costo"],"631530":["ERI","Costo","","Costo"],"631540":["ERI","Costo","","Costo"],"631550":["ERI","Costo","","Costo"],"631560":["ERI","Costo","","Costo"],"631570":["ERI","Costo","","Costo"],"631580":["ERI","Costo","","Costo"],"631599":["ERI","Costo","","Costo"],"632100":["ERI","Costo","","Costo"],"632110":["ERI","Costo","","Costo"],"632120":["ERI","Gasto","","Gasto"],"632130":["ERI","Costo","","Costo"],"632140":["ERI","Costo","","Costo"],"632150":["ERI","Costo","","Costo"],"632160":["ERI","Costo","","Costo"],"632170":["ERI","Costo","","Costo"],"632180":["ERI","Gasto","","Gasto"],"633100":["ERI","Costo","","Costo"],"633110":["ERI","Costo","","Costo"],"633120":["ERI","Costo","","Costo"],"633125":["ERI","Gasto","","Gasto"],"633130":["ERI","Gasto","","Gasto"],"633135":["ERI","Gasto","","Gasto"],"633140":["ERI","Costo","","Costo"],"633150":["ERI","Gasto","","Gasto"],"633160":["ERI","Costo","","Costo"],"633180":["ERI","Costo","","Costo"],"634100":["ERI","Gasto","","Gasto"],"634110":["ERI","Costo","","Costo"],"635100":["ERI","Costo","","Costo"],"635110":["ERI","Costo","","Costo"],"640800":["ERI","Costo","","Costo"],"640802":["ERI","Costo","","Costo"],"640804":["ERI","Costo","","Costo"],"640805":["ERI","Gasto","","Gasto"],"640810":["ERI","Gasto","","Gasto"],"640900":["ERI","Gasto","","Gasto"],"640904":["ERI","Gasto","","Gasto"],"640903":["ERI","Gasto","","Gasto"],"640912":["ERI","Gasto","","Gasto"],"645000":["ERI","Costo","","Costo"],"645003":["ERI","Costo","","Costo"],"645005":["ERI","Gasto","","Gasto"],"645006":["ERI","Costo","","Costo"],"645007":["ERI","Costo","","Costo"],"645008":["ERI","Gasto","","Gasto"],"645009":["ERI","Costo","","Costo"],"670100":["ERI","Costo","","Costo"],"670110":["ERI","Costo","","Costo"],"670111":["ERI","Costo","","Costo"],"670112":["ERI","Costo","","Costo"],"670113":["ERI","Costo","","Costo"],"710100":["ERI","Gasto","","Gasto"],"720139":["ERI","Otros gastos","","Otros gastos"],"720140":["ERI","Otros ingresos","Otros ingresos","Otros ingresos"],"720151":["ERI","Ingresos ordinarios","Servicios 15%","Ingresos ordinarios"],"720158":["ERI","Costo","Bienes 15%","Costo"],"720161":["ERI","Costo","Bienes 15%","Costo"],"720180":["ERI","Ingresos ordinarios","Servicios 15%","Ingresos ordinarios"],"720174":["ERI","Otros gastos","","Otros gastos"],"720166":["ERI","Otros gastos","","Otros gastos"],"720183":["ERI","Costo","","Costo"],"720184":["ERI","Ingresos ordinarios","Servicios 15%","Ingresos ordinarios"],"720198":["ERI","Costo","","Costo"],"720196":["ERI","Otros ingresos","Servicios 15%","Otros ingresos"],"720200":["ERI","Otros ingresos","","Otros ingresos"],"720250":["ERI","Otros ingresos","","Otros ingresos"],"720260":["ERI","Otros ingresos","Venta de activo fijos","Otros ingresos"],"720270":["ERI","Costo","","Costo"],"720600":["ERI","Otros ingresos","","Otros gastos"],"720800":["ERI","Otros gastos","Otros ingresos","Otros gastos"],"770100":["ERI","Otros ingresos","","Otros ingresos"],"770201":["ERI","Gasto","","Gasto"],"770400":["ERI","Gasto","","Gasto"],"770450":["ERI","Gasto","","Gasto"],"775100":["ERI","Participacion de trabajadores","Participacion de trabajadores","Participacion de trabajadores"],"780100":["ERI","Impuesto a la renta","Impuesto a la renta","Impuesto a la renta"],"780300":["ERI","Impuesto a la renta diferido","Impuesto a la renta diferido","Impuesto a la renta diferido"],"810105":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810201":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810221":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810231":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810250":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810251":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810252":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810255":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810257":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810271":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810350":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810390":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810392":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810393":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810394":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810395":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810403":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810396":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810400":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810414":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810415":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810416":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810417":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810418":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810419":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810420":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810425":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810437":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810439":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810440":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810443":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810444":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810445":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810446":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810447":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810448":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810449":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810450":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810451":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810453":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810455":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810456":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810457":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810458":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810459":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810460":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810461":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810462":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810463":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810465":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810467":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810468":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810469":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810470":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810473":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810475":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810476":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810477":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810480":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810481":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810482":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810483":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810485":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810486":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810487":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810490":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810491":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810495":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810492":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810496":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810498":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810499":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810501":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810502":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810503":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810504":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810505":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810506":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810507":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810508":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810509":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810510":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810511":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810512":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810513":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810514":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810516":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810515":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810519":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810520":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810521":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810522":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810523":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810524":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810526":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810527":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810528":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810529":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810530":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810531":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810532":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810533":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810534":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810535":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810536":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810540":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810541":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810542":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810546":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810543":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810549":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810552":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810553":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810554":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810555":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810557":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810558":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810559":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810560":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810561":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810562":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810563":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810564":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810566":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810567":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810569":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810570":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810571":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810572":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810574":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810576":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810577":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810578":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810579":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810580":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810581":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810582":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810583":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810585":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810587":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810588":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810589":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810590":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810591":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810592":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810593":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810594":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810595":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810596":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810598":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810599":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810600":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810700":["ERI","Cuentas transitorias","","Cuentas transitorias"],"820100":["ERI","Cuentas transitorias","","Cuentas transitorias"],"820105":["ERI","Cuentas transitorias","","Cuentas transitorias"],"820110":["ERI","Cuentas transitorias","","Cuentas transitorias"],"820120":["ERI","Cuentas transitorias","","Cuentas transitorias"],"820130":["ERI","Cuentas transitorias","","Cuentas transitorias"],"820140":["ERI","Cuentas transitorias","","Cuentas transitorias"],"820150":["ERI","Cuentas transitorias","","Cuentas transitorias"],"820170":["ERI","Cuentas transitorias","","Cuentas transitorias"],"820180":["ERI","Cuentas transitorias","","Cuentas transitorias"],"820190":["ERI","Cuentas transitorias","","Cuentas transitorias"],"820210":["ERI","Cuentas transitorias","","Cuentas transitorias"],"839999":["ERI","Cuentas transitorias","","Cuentas transitorias"],"850500":["ERI","Cuentas transitorias","","Cuentas transitorias"],"850600":["ERI","Cuentas transitorias","","Cuentas transitorias"],"860100":["ERI","Cuentas transitorias","","Cuentas transitorias"],"860110":["ERI","Cuentas transitorias","","Cuentas transitorias"],"860111":["ERI","Cuentas transitorias","","Cuentas transitorias"],"860112":["ERI","Cuentas transitorias","","Cuentas transitorias"],"860117":["ERI","Cuentas transitorias","","Cuentas transitorias"],"860140":["ERI","Cuentas transitorias","","Cuentas transitorias"],"860150":["ERI","Cuentas transitorias","","Cuentas transitorias"],"860170":["ERI","Cuentas transitorias","","Cuentas transitorias"],"860180":["ERI","Cuentas transitorias","","Cuentas transitorias"],"860183":["ERI","Cuentas transitorias","","Cuentas transitorias"],"860184":["ERI","Cuentas transitorias","","Cuentas transitorias"],"860190":["ERI","Cuentas transitorias","","Cuentas transitorias"],"860195":["ERI","Cuentas transitorias","","Cuentas transitorias"],"860200":["ERI","Cuentas transitorias","","Cuentas transitorias"],"860210":["ERI","Cuentas transitorias","","Cuentas transitorias"],"860220":["ERI","Cuentas transitorias","","Cuentas transitorias"],"860230":["ERI","Cuentas transitorias","","Cuentas transitorias"],"810539":["ERI","Cuentas transitorias","","Cuentas transitorias"],"860240":["ERI","Cuentas transitorias","","Cuentas transitorias"],"860243":["ERI","Cuentas transitorias","","Cuentas transitorias"],"870100":["ERI","Cuentas transitorias","","Cuentas transitorias"],"870200":["ERI","Cuentas transitorias","","Cuentas transitorias"]};
+const COMBOS_SEED = [["ESF","Activo corriente","Equivalentes y efectivo","Activo"],["ESF","Activo corriente","Cuentas a cobrar clientes","Activo"],["ESF","Activo corriente","Cuentas por cobrar a compañias relacionadas","Activo"],["ESF","Activo corriente","Otras cuentas por cobrar","Activo"],["ESF","Activo corriente","Otros Activos Corrientes","Activo"],["ESF","Activo corriente","Impuestos a recuperar","Activo"],["ESF","Activo corriente","Propiedades, planta y equipo","Activo"],["ESF","Activo corriente","Inventarios","Activo"],["ESF","Activo no corriente","Propiedades, planta y equipo","Activo"],["ESF","Activo no corriente","Inversiones en subsidiarias","Activo"],["ESF","Activo no corriente","Activos intangibles","Activo"],["ESF","Activo no corriente","Activos por derecho de uso","Activo"],["ESF","Activo no corriente","Activos biológicos","Activo"],["ESF","Pasivo corriente","Cuentas por pagar proveedores","Pasivo"],["ESF","Pasivo corriente","Cuentas por pagar compañias relacionadas","Pasivo"],["ESF","Pasivo corriente","Beneficios a empleados","Pasivo"],["ESF","Pasivo corriente","Otros impuestos por pagar","Pasivo"],["ESF","Pasivo corriente","Otras cuentas por pagar","Pasivo"],["ESF","Pasivo no corriente","Pasivos por arrendamiento","Pasivo"],["ESF","Pasivo no corriente","Provisiones","Pasivo"],["ESF","Pasivo no corriente","Cuentas por pagar compañias relacionadas","Pasivo"],["ESF","Pasivo corriente","Impuesto a la renta a pagar","Pasivo"],["ESF","Pasivo no corriente","Pasivo por impuesto a la renta diferido","Pasivo"],["ESF","Pasivo no corriente","Beneficios a empleados","Pasivo"],["ESF","Patrimonio","Capital social","Patrimonio"],["ESF","Patrimonio","","Patrimonio"],["ESF","Patrimonio","Resultados acumulados","Patrimonio"],["ESF","Patrimonio","Reserva Legal","Patrimonio"],["ERI","Ingresos ordinarios","Exportaciones","Ingresos ordinarios"],["ERI","Costo","Costo 0","Costo"],["ERI","Costo","","Costo"],["ERI","Gasto","Costo 0","Costo"],["ERI","Otros ingresos","Ganancia activo biológico","Otros ingresos"],["ERI","Otros Ingresos/gasto","Ganancia activo biológico","Otros Ingresos/gasto"],["ERI","Costo","Costo 1","Costo"],["ERI","Costo","Costo 2","Costo"],["ERI","Gasto","","Gasto"],["ERI","Gasto","Costo 3","Gasto"],["ERI","Gasto","","Costo"],["ERI","Otros gastos","","Otros gastos"],["ERI","Otros ingresos","Otros ingresos","Otros ingresos"],["ERI","Ingresos ordinarios","Servicios 15%","Ingresos ordinarios"],["ERI","Costo","Bienes 15%","Costo"],["ERI","Otros ingresos","Servicios 15%","Otros ingresos"],["ERI","Otros ingresos","","Otros ingresos"],["ERI","Otros ingresos","Venta de activo fijos","Otros ingresos"],["ERI","Otros ingresos","","Otros gastos"],["ERI","Otros gastos","Otros ingresos","Otros gastos"],["ERI","Participacion de trabajadores","Participacion de trabajadores","Participacion de trabajadores"],["ERI","Impuesto a la renta","Impuesto a la renta","Impuesto a la renta"],["ERI","Impuesto a la renta diferido","Impuesto a la renta diferido","Impuesto a la renta diferido"],["ERI","Cuentas transitorias","","Cuentas transitorias"]];
+const STORE_TPL='eeff_tpl_v3';     // plantilla persistente {cuenta:[tipo,c1,c2,c3]}
+const STORE_COMBOS='eeff_combos_v3';// catalogo combos
+const STORE_HIST='eeff_hist_v3';    // periodos guardados
+
+const $=s=>document.querySelector(s);
+const $$=s=>Array.from(document.querySelectorAll(s));
+const fmt=n=>{if(n===null||n===undefined||isNaN(n))return '-';const v=Math.round(n*100)/100;const s=Math.abs(v).toLocaleString('es-EC',{minimumFractionDigits:2,maximumFractionDigits:2});return v<0?'('+s+')':s;};
+const cls=n=>(n<0?'num neg':'num');
+
+let RAW={eeff:null,grr:null};
+let MODEL=null;
+let PERIODS={month:'',year:'',label:'',compLabel:''};
+const MONTHS=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+function periodKey(month,year){return month+'-'+year;}
+function periodIndex(label){ // para ordenar cronologicamente: año*12+mes
+  const parts=label.split('-');if(parts.length<2)return 0;
+  const mi=MONTHS.indexOf(parts[0]);const yr=parseInt(parts[1])||0;
+  return yr*12+mi;
+}
+function prevPeriodLabel(label){ // mes anterior guardado mas cercano
+  const hist=loadHist();const target=periodIndex(label);
+  let best=null,bestIdx=-1;
+  for(const k of Object.keys(hist)){const idx=periodIndex(k);if(idx<target&&idx>bestIdx){bestIdx=idx;best=k;}}
+  return best;
+}
+
+// ============================================================
+//  CAPA DE DATOS: multi-compañia + nube (Firebase) con respaldo local
+// ============================================================
+let DB=null, CLOUD=false, CURRENT_CO=null, AUTH_USER=null;
+let HIST={};            // historico en memoria de la compañia actual
+let _booted=false;
+const _cloudTimers={};
+function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+function lsKey(base){return base+(CURRENT_CO?'__'+CURRENT_CO:'');}
+
+function initFirebase(){
+  try{
+    const cfg=window.FIREBASE_CONFIG;
+    if(typeof firebase!=='undefined' && cfg && cfg.apiKey && cfg.projectId){
+      firebase.initializeApp(cfg);
+      DB=firebase.firestore();
+      CLOUD=true;
+    }
+  }catch(e){console.warn('Firebase no inicializado:',e);CLOUD=false;DB=null;}
+}
+
+// ---- estado nube / feedback ----
+function updateCloudBadge(state){
+  const b=$('#cloudBadge');if(!b)return;
+  if(CLOUD){
+    if(state==='err'){b.textContent='● Nube: error al guardar';b.className='cloud-badge err';}
+    else{b.textContent='● En línea (nube)';b.className='cloud-badge ok';}
+  }else{b.textContent='● Local (este navegador)';b.className='cloud-badge local';}
+}
+function flashSaved(msg){const t=$('#savedTag');if(!t)return;t.textContent=msg;setTimeout(()=>{if(t.textContent===msg)t.textContent='';},3000);}
+
+// ---- companias en localStorage (indice + respaldo) ----
+function localCompanies(){try{return JSON.parse(localStorage.getItem('eeff_companies')||'[]');}catch(e){return [];}}
+function setLocalCompanies(a){localStorage.setItem('eeff_companies',JSON.stringify(a));}
+function loadLocalCompany(id){
+  let tpl,combos,hist;
+  try{tpl=JSON.parse(localStorage.getItem(STORE_TPL+'__'+id))||Object.assign({},REF_SEED);}catch(e){tpl=Object.assign({},REF_SEED);}
+  try{combos=JSON.parse(localStorage.getItem(STORE_COMBOS+'__'+id))||COMBOS_SEED.slice();}catch(e){combos=COMBOS_SEED.slice();}
+  try{hist=JSON.parse(localStorage.getItem(STORE_HIST+'__'+id))||{};}catch(e){hist={};}
+  return {tpl,combos,hist};
+}
+
+// ---- operaciones en la nube (Firestore) ----
+//  companies/{id} -> {name, tpl, combos, updatedAt}
+//  companies/{id}/periods/{label} -> datos del periodo
+function cloudSaveField(field,val){
+  if(!CLOUD||!CURRENT_CO)return;
+  clearTimeout(_cloudTimers[field]);
+  _cloudTimers[field]=setTimeout(()=>{
+    DB.collection('companies').doc(CURRENT_CO).set({[field]:val,updatedAt:Date.now()},{merge:true})
+      .then(()=>updateCloudBadge('ok')).catch(e=>{console.warn('cloud save',e);updateCloudBadge('err');});
+  },700);
+}
+function cloudSavePeriodDoc(label,data){return DB.collection('companies').doc(CURRENT_CO).collection('periods').doc(label).set(data);}
+function cloudDeletePeriodDoc(label){return DB.collection('companies').doc(CURRENT_CO).collection('periods').doc(label).delete();}
+async function cloudLoadCompany(id){
+  const doc=await DB.collection('companies').doc(id).get();
+  const d=doc.exists?doc.data():{};
+  const tpl=d.tpl||Object.assign({},REF_SEED);
+  const combos=d.combos||COMBOS_SEED.slice();
+  const snap=await DB.collection('companies').doc(id).collection('periods').get();
+  const hist={};snap.forEach(p=>{hist[p.id]=p.data();});
+  return {tpl,combos,hist};
+}
+async function cloudListCompanies(){
+  const snap=await DB.collection('companies').get();
+  const arr=[];snap.forEach(d=>arr.push({id:d.id,name:d.data().name||d.id}));
+  return arr;
+}
+
+// ---- API unificada (nube si existe, si no local) ----
+async function listCompanies(){
+  if(CLOUD){try{const arr=await cloudListCompanies();arr.sort((a,b)=>a.name.localeCompare(b.name));setLocalCompanies(arr);return arr;}catch(e){console.warn('listCompanies',e);}}
+  const arr=localCompanies();arr.sort((a,b)=>a.name.localeCompare(b.name));return arr;
+}
+async function createCompany(name){
+  name=(name||'').trim();if(!name)return null;
+  let id=null;
+  if(CLOUD){try{const ref=await DB.collection('companies').add({name,tpl:Object.assign({},REF_SEED),combos:COMBOS_SEED.slice(),createdAt:Date.now(),updatedAt:Date.now()});id=ref.id;}catch(e){console.warn('createCompany',e);}}
+  if(!id)id='co_'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+  if(!localStorage.getItem(STORE_TPL+'__'+id))localStorage.setItem(STORE_TPL+'__'+id,JSON.stringify(Object.assign({},REF_SEED)));
+  if(!localStorage.getItem(STORE_COMBOS+'__'+id))localStorage.setItem(STORE_COMBOS+'__'+id,JSON.stringify(COMBOS_SEED.slice()));
+  if(!localStorage.getItem(STORE_HIST+'__'+id))localStorage.setItem(STORE_HIST+'__'+id,JSON.stringify({}));
+  const list=localCompanies();if(!list.find(c=>c.id===id)){list.push({id,name});setLocalCompanies(list);}
+  return id;
+}
+async function renameCompany(id,name){
+  if(CLOUD){try{await DB.collection('companies').doc(id).set({name,updatedAt:Date.now()},{merge:true});}catch(e){console.warn('renameCompany',e);}}
+  const list=localCompanies();const c=list.find(x=>x.id===id);if(c){c.name=name;setLocalCompanies(list);}
+}
+async function deleteCompany(id){
+  if(CLOUD){try{const snap=await DB.collection('companies').doc(id).collection('periods').get();const batch=DB.batch();snap.forEach(d=>batch.delete(d.ref));await batch.commit();await DB.collection('companies').doc(id).delete();}catch(e){console.warn('deleteCompany',e);}}
+  localStorage.removeItem(STORE_TPL+'__'+id);localStorage.removeItem(STORE_COMBOS+'__'+id);localStorage.removeItem(STORE_HIST+'__'+id);
+  setLocalCompanies(localCompanies().filter(c=>c.id!==id));
+}
+
+// ---- seleccionar compañia: carga su plantilla/combos/historico ----
+async function selectCompany(id){
+  if(!id)return;
+  CURRENT_CO=id;localStorage.setItem('eeff_current_co',id);
+  let data;
+  if(CLOUD){
+    try{
+      data=await cloudLoadCompany(id);
+      localStorage.setItem(lsKey(STORE_TPL),JSON.stringify(data.tpl));
+      localStorage.setItem(lsKey(STORE_COMBOS),JSON.stringify(data.combos));
+      localStorage.setItem(lsKey(STORE_HIST),JSON.stringify(data.hist));
+    }catch(e){console.warn('cloud load, uso local',e);data=loadLocalCompany(id);}
+  }else{data=loadLocalCompany(id);}
+  TPL=data.tpl;COMBOS=data.combos;HIST=data.hist;
+  resetWorkspace();renderHist();updateCloudBadge();
+  const sel=$('#coSelect');if(sel)sel.value=id;
+}
+
+// limpia archivos cargados y paneles al cambiar de compañia
+function resetWorkspace(){
+  RAW={eeff:null,grr:null};MODEL=null;
+  ['dropEeff','dropGrr'].forEach(id=>{const el=$('#'+id);if(el)el.classList.remove('set');});
+  ['nameEeff','nameGrr'].forEach(id=>{const el=$('#'+id);if(el)el.textContent='';});
+  const fe=$('#fileEeff'),fg=$('#fileGrr');if(fe)fe.value='';if(fg)fg.value='';
+  ['btnBuild','btnSave','btnExport'].forEach(id=>{const b=$('#'+id);if(b)b.disabled=true;});
+  const mc=$('#main-content');if(mc)mc.innerHTML='<div class="empty"><div class="big">Carga EEFF y GRR3, luego Generar estados</div><div>ESF y ERI apareceran juntos con el formato de la plantilla.</div></div>';
+  const macc=$('#macro-content');if(macc)macc.innerHTML='<div class="empty"><div class="big">Resumen a nivel macro</div><div>Totales por clasificacion, conciliacion de utilidad y validacion del 15%.</div></div>';
+  const st=$('#status');if(st){st.className='status';st.innerHTML='';}
+}
+
+// migra datos antiguos (claves sin compañia) a una compañia "Plantabal" — solo modo local
+function migrateLegacy(){
+  if(localCompanies().length)return;
+  const lt=localStorage.getItem(STORE_TPL),lh=localStorage.getItem(STORE_HIST);
+  if(!lt&&!lh)return;
+  const id='co_legacy';
+  localStorage.setItem(STORE_TPL+'__'+id,lt||JSON.stringify(Object.assign({},REF_SEED)));
+  localStorage.setItem(STORE_COMBOS+'__'+id,localStorage.getItem(STORE_COMBOS)||JSON.stringify(COMBOS_SEED.slice()));
+  localStorage.setItem(STORE_HIST+'__'+id,lh||'{}');
+  setLocalCompanies([{id,name:'Plantabal'}]);
+  localStorage.setItem('eeff_current_co',id);
+}
+
+// arranque de la app (tras login si hay nube)
+async function bootstrap(){
+  if(_booted)return;_booted=true;
+  updateCloudBadge();
+  if(!CLOUD)migrateLegacy();
+  let list=await listCompanies();
+  if(!list.length){
+    const id=await createCompany('Plantabal');
+    await selectCompany(id);
+    list=await listCompanies();
+  }else{
+    let cur=localStorage.getItem('eeff_current_co');
+    if(!cur||!list.find(c=>c.id===cur))cur=list[0].id;
+    await selectCompany(cur);
+  }
+  renderCompanySelect(list);
+  const mb=$('#btnCoManage');if(mb)mb.onclick=openCoManager;
+}
+
+// ---- UI compañias ----
+function renderCompanySelect(list){
+  const sel=$('#coSelect');if(!sel)return;
+  sel.innerHTML=list.map(c=>'<option value="'+c.id+'">'+escapeHtml(c.name)+'</option>').join('');
+  if(CURRENT_CO)sel.value=CURRENT_CO;
+  sel.onchange=e=>selectCompany(e.target.value);
+}
+window.openCoManager=function(){
+  const list=localCompanies().slice().sort((a,b)=>a.name.localeCompare(b.name));
+  let html='<p class="note">Cada compañía guarda su propia plantilla, catálogo de clasificaciones e históricos por separado'+(CLOUD?' y se sincroniza en la nube.':' (en este navegador).')+'</p><div id="coList">';
+  for(const c of list){
+    const cur=c.id===CURRENT_CO?' <span class="pill c0">actual</span>':'';
+    html+='<div class="combo-row"><span class="vals" style="flex:1;font-size:12px">'+escapeHtml(c.name)+cur+'</span>'+
+      '<button class="ghost sm" onclick="switchCompanyFromMgr(\''+c.id+'\')">Abrir</button>'+
+      '<button class="ghost sm" onclick="renameCompanyUI(\''+c.id+'\')">Renombrar</button>'+
+      '<button class="ghost danger sm" onclick="deleteCompanyUI(\''+c.id+'\')">Eliminar</button></div>';
+  }
+  html+='</div><div class="addgrid" style="grid-template-columns:1fr auto;margin-top:12px"><input id="newCoName" placeholder="Nombre de la nueva compañía"><button class="primary sm" onclick="addCompanyUI()">Agregar compañía</button></div>';
+  $('#coModalTitle').textContent='Compañías';
+  $('#coModalBody').innerHTML=html;
+  $('#coModalBg').classList.add('show');
+};
+window.closeCoModal=function(){$('#coModalBg').classList.remove('show');};
+window.addCompanyUI=async function(){
+  const name=($('#newCoName').value||'').trim();if(!name){alert('Escribe un nombre.');return;}
+  const id=await createCompany(name);const list=await listCompanies();renderCompanySelect(list);await selectCompany(id);openCoManager();
+};
+window.renameCompanyUI=async function(id){
+  const c=localCompanies().find(x=>x.id===id);const name=prompt('Nuevo nombre:',c?c.name:'');if(name===null||!name.trim())return;
+  await renameCompany(id,name.trim());const list=await listCompanies();renderCompanySelect(list);openCoManager();
+};
+window.deleteCompanyUI=async function(id){
+  const list=localCompanies();if(list.length<=1){alert('Debe existir al menos una compañía.');return;}
+  const c=list.find(x=>x.id===id);if(!confirm('¿Eliminar la compañía "'+(c?c.name:id)+'" y todos sus datos? Esta acción no se puede deshacer.'))return;
+  await deleteCompany(id);
+  let l=await listCompanies();
+  if(CURRENT_CO===id)await selectCompany(l[0].id);
+  renderCompanySelect(l);openCoManager();
+};
+window.switchCompanyFromMgr=async function(id){await selectCompany(id);renderCompanySelect(await listCompanies());closeCoModal();};
+
+// ---- login (solo cuando hay nube) ----
+function showLogin(){const o=$('#loginOverlay');if(o)o.classList.add('show');}
+function hideLogin(){const o=$('#loginOverlay');if(o)o.classList.remove('show');}
+window.doLogin=function(){
+  const email=($('#loginEmail').value||'').trim(),pass=$('#loginPass').value;
+  const err=$('#loginErr');err.textContent='';
+  if(!email||!pass){err.textContent='Escribe correo y contraseña.';return;}
+  firebase.auth().signInWithEmailAndPassword(email,pass).catch(e=>{err.textContent='No se pudo iniciar sesión: '+e.message;});
+};
+window.doLogout=function(){if(CLOUD&&typeof firebase!=='undefined'&&firebase.auth)firebase.auth().signOut();};
+
+initFirebase();
+
+// ---- plantilla persistente (por compañia + nube) ----
+function loadTpl(){try{const s=localStorage.getItem(lsKey(STORE_TPL));return s?JSON.parse(s):Object.assign({},REF_SEED);}catch(e){return Object.assign({},REF_SEED);}}
+function saveTpl(t){TPL=t;try{localStorage.setItem(lsKey(STORE_TPL),JSON.stringify(t));}catch(e){}cloudSaveField('tpl',t);}
+function loadCombos(){try{const s=localStorage.getItem(lsKey(STORE_COMBOS));return s?JSON.parse(s):COMBOS_SEED.slice();}catch(e){return COMBOS_SEED.slice();}}
+function saveCombos(c){COMBOS=c;try{localStorage.setItem(lsKey(STORE_COMBOS),JSON.stringify(c));}catch(e){}cloudSaveField('combos',c);}
+let TPL={};
+let COMBOS=[];
+
+// ---- carga archivos ----
+function readFile(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>{try{const wb=XLSX.read(e.target.result,{type:'array'});const ws=wb.Sheets[wb.SheetNames[0]];res(XLSX.utils.sheet_to_json(ws,{header:1,raw:true}));}catch(err){rej(err);}};r.onerror=rej;r.readAsArrayBuffer(file);});}
+function hookDrop(inputId,key,dropId,nameId){
+  $('#'+inputId).addEventListener('change',async e=>{
+    const f=e.target.files[0];if(!f)return;
+    try{RAW[key]=await readFile(f);$('#'+dropId).classList.add('set');$('#'+nameId).textContent='\u2713 '+f.name;}
+    catch(err){alert('No se pudo leer: '+err.message);}
+    $('#btnBuild').disabled=!(RAW.eeff&&RAW.grr);
+  });
+}
+hookDrop('fileEeff','eeff','dropEeff','nameEeff');
+hookDrop('fileGrr','grr','dropGrr','nameGrr');
+
+// ---- GRR3 -> {cuenta_base: {0:ytd,1:ytd,2:ytd,3:ytd}} ignorando totales (*) ----
+// Robusto a distintos formatos: localiza la columna 'YTD actual' por encabezado
+// y el codigo NNNNNN-D en cualquier columna de la fila.
+function parseGRR3(rows){
+  const dist={}; const re=/^(\d{6})-(\d)/;
+  // 1) localizar fila de encabezados y columna de 'YTD actual'
+  let ytdCol=-1, nameCol=1;
+  for(let i=0;i<rows.length;i++){
+    const r=rows[i];if(!r)continue;
+    for(let c=0;c<r.length;c++){
+      const v=(typeof r[c]==='string')?r[c].trim().toLowerCase():'';
+      if(v==='ytd actual'){ytdCol=c;}
+      if(v==='lead column'){nameCol=c;}
+    }
+    if(ytdCol>=0)break;
+  }
+  // 2) recorrer cuentas
+  for(const r of rows){
+    if(!r)continue;
+    const nombre=(typeof r[nameCol]==='string')?r[nameCol].trim():'';
+    if(nombre.indexOf('*')===0)continue; // total/subtotal -> ignorar
+    // buscar codigo NNNNNN-D en cualquier columna (suele estar al final)
+    let base=null,b=null;
+    for(let c=0;c<r.length;c++){const v=r[c];
+      if(typeof v==='string'){const m=re.exec(String(v).trim());if(m){base=m[1];b=Number(m[2]);break;}}
+    }
+    if(base!==null){
+      // valor YTD: usar la columna detectada; si no se hallo, buscar el primer numero de la fila
+      let ytd;
+      if(ytdCol>=0){ ytd=Number(r[ytdCol]); }
+      else { for(let c=2;c<r.length;c++){ if(typeof r[c]==='number'){ ytd=r[c]; break; } } }
+      if(!isNaN(ytd)){if(!dist[base])dist[base]={};dist[base][b]=(dist[base][b]||0)+ytd;}
+    }
+  }
+  return dist;
+}
+
+// Distribucion: C0/C1/C2/C3 = montos GRR3 tal cual; la diferencia con el saldo EEFF
+// se devuelve como 'ajuste' (linea aparte, sin codigo GRR3, clasificada Gasto).
+function distributeCost(saldoEeff, grrDist){
+  const out={0:0,1:0,2:0,3:0,ajuste:0};
+  if(!grrDist){ out.ajuste=saldoEeff; return out; } // sin desglose -> todo a ajuste (Gasto)
+  let sumGrr=0;
+  for(const b of [0,1,2,3]){ if(grrDist[b]!=null){ out[b]=grrDist[b]; sumGrr+=grrDist[b]; } }
+  out.ajuste = saldoEeff - sumGrr; // diferencia que completa el saldo oficial
+  return out;
+}
+// Distribucion PROPORCIONAL (columna comparacion): cada bucket toma su % del GRR3
+// aplicado al saldo de comparacion; el resto -> C3.
+function distributeCostProp(saldoComp, grrDist){
+  const out={0:0,1:0,2:0,3:0};
+  if(!grrDist){ out[3]=saldoComp; return out; }
+  let totalGrr=0;
+  for(const b of [0,1,2]){ if(grrDist[b]!=null) totalGrr+=grrDist[b]; }
+  if(Math.abs(totalGrr)<0.005){ out[3]=saldoComp; return out; }
+  let assigned=0;
+  for(const b of [0,1,2]){ if(grrDist[b]!=null){ out[b]=saldoComp*(grrDist[b]/totalGrr); assigned+=out[b]; } }
+  out[3]=saldoComp-assigned;
+  return out;
+}
+
+// ---- EEFF -> cuentas (solo 'Total of reporting period' = acumulado del ano) ----
+function parseEEFF(rows){
+  let h=rows.findIndex(r=>String(r[0]).trim().toLowerCase().startsWith('financial statement'));
+  if(h<0)h=0;
+  const out=[];
+  for(let i=h+1;i<rows.length;i++){
+    const r=rows[i];if(!r)continue;
+    const cta=r[2]!=null?String(r[2]).trim():'';
+    if(!cta)continue;
+    const nombre=r[3]?String(r[3]).trim():'';
+    const saldo=Number(r[4]); // reporting period = acumulado oficial
+    out.push({cuenta:cta,nombre,saldo:isNaN(saldo)?0:saldo});
+  }
+  return out;
+}
+
+// determina si una cuenta (por su clasificacion) es de costo/gasto distribuible
+function isCostAccount(ref){
+  if(!ref)return false;
+  // ref = [tipo,c1,c2,c3]; es ERI y su clasificacion es Costo o Gasto
+  return ref[0]==='ERI' && (ref[1]==='Costo'||ref[1]==='Gasto'||ref[3]==='Costo');
+}
+
+function build(){
+  const grrDist=parseGRR3(RAW.grr);
+  const eeff=parseEEFF(RAW.eeff);
+  // comparativo: buscar mes anterior guardado
+  const compLabel=PERIODS.label?prevPeriodLabel(PERIODS.label):null;
+  PERIODS.compLabel=compLabel||'';
+  let compSaldos={}; // cuenta -> saldo acumulado del mes anterior (por baseCuenta y por bucket)
+  if(compLabel){
+    const hist=loadHist();const prev=hist[compLabel];
+    if(prev&&prev.rows){for(const pr of prev.rows){
+      const key=pr.ajuste?(pr.cuenta+'-aj'):(pr.grrCode||pr.cuenta);
+      compSaldos[key]=(compSaldos[key]||0)+pr.actual;
+    }}
+  }
+  let sumA=0; const rows=[]; const news=[];
+  for(const a of eeff){
+    sumA+=a.saldo;
+    const ref=TPL[a.cuenta];
+    const dist=grrDist[a.cuenta];
+    // distribuir si: esta clasificada como costo/gasto, O no esta en plantilla pero GRR3 la tiene con bucket
+    const autoCost = !ref && dist; // cuenta nueva pero con costo en GRR3 -> auto-clasificar
+    if((ref && isCostAccount(ref) && dist) || autoCost){
+      const dA=distributeCost(a.saldo,dist);
+      for(const b of [0,1,2,3]){
+        if(Math.abs(dA[b])<0.005) continue;
+        const c1 = (b===3)?'Gasto':'Costo'; // C3=Gasto, C0/C1/C2=Costo
+        const c2 = 'Costo '+b;
+        const gcode=a.cuenta+'-'+b;
+        const comp=compSaldos[gcode]||0;
+        rows.push({
+          cuenta:a.cuenta, baseCuenta:a.cuenta, nombre:a.nombre,
+          tipo:'ERI', c1, c2, c3:c1,
+          bucket:b, grrCode:gcode,
+          actual:dA[b], comp, diff:dA[b]-comp, isNew:false, distributed:true, autoClasif:autoCost
+        });
+      }
+      // linea de AJUSTE: diferencia entre saldo EEFF y la suma del GRR3.
+      // Sin codigo GRR3, clasificada como Gasto.
+      if(Math.abs(dA.ajuste)>=0.005){
+        const comp=compSaldos[a.cuenta+'-aj']||0;
+        rows.push({
+          cuenta:a.cuenta, baseCuenta:a.cuenta, nombre:a.nombre,
+          tipo:'ERI', c1:'Gasto', c2:'', c3:'Gasto',
+          bucket:null, grrCode:'',
+          actual:dA.ajuste, comp, diff:dA.ajuste-comp, isNew:false, distributed:true, ajuste:true
+        });
+      }
+      continue;
+    }
+    if(!ref){
+      // cuenta nueva sin costo en GRR3 -> pedir clasificacion manual
+      const comp=compSaldos[a.cuenta]||0;
+      const row={cuenta:a.cuenta,baseCuenta:a.cuenta,nombre:a.nombre,tipo:'',c1:'',c2:'',c3:'',bucket:null,grrCode:'',actual:a.saldo,comp,diff:a.saldo-comp,isNew:true};
+      rows.push(row);news.push(row);
+      continue;
+    }
+    // cuenta clasificada normal (ESF u otra ERI sin desglose)
+    const comp=compSaldos[a.cuenta]||0;
+    rows.push({cuenta:a.cuenta,baseCuenta:a.cuenta,nombre:a.nombre,tipo:ref[0],c1:ref[1],c2:ref[2],c3:ref[3],bucket:null,grrCode:'',actual:a.saldo,comp,diff:a.saldo-comp,isNew:false});
+  }
+  MODEL={rows,sumA,sumC:0,news,grrDist,compLabel};
+  renderAll();
+  $('#btnSave').disabled=false;$('#btnExport').disabled=false;
+}
+
+// ---- estado / validacion ----
+function renderStatus(){
+  const s=$('#status');const d=MODEL.sumA, zero=Math.abs(d)<0.5, hasNew=MODEL.news.length>0;
+  if(hasNew){
+    s.className='status show warn';
+    s.innerHTML='<span>\u26A0 Hay <b>'+MODEL.news.length+' cuenta(s) nueva(s)</b> sin clasificar (resaltadas). Asigna su clasificacion en el desplegable; se guardara para los proximos meses.</span><span class="big '+(d<0?'neg':'')+'">'+(zero?'0.00':fmt(d))+'</span>';
+  }else if(zero){
+    s.className='status show ok';
+    s.innerHTML='<span>\u2713 Validacion correcta. La suma de todos los saldos cierra en cero.</span><span class="big">0.00</span>';
+  }else{
+    s.className='status show err';
+    s.innerHTML='<span>\u2717 La suma de todos los saldos <b>no da cero</b>. Revisa si falta una cuenta o un saldo descuadra.</span><span class="big '+(d<0?'neg':'')+'">'+fmt(d)+'</span>';
+  }
+}
+
+// ---- KPIs ----
+function renderKPI(){
+  const m=MODEL;
+  let act=0,pasPat=0,result=0;
+  for(const r of m.rows){
+    if(r.tipo==='ESF'){if(r.c1.indexOf('Activo')===0)act+=r.actual;else pasPat+=r.actual;}
+    else if(r.tipo==='ERI')result+=r.actual;
+  }
+  return '<div class="kpi">'+
+    '<div class="kpicard"><div class="l">Total Activo</div><div class="v '+(act<0?'neg':'')+'">'+fmt(act)+'</div></div>'+
+    '<div class="kpicard"><div class="l">Pasivo + Patrimonio</div><div class="v '+(pasPat<0?'neg':'')+'">'+fmt(pasPat)+'</div></div>'+
+    '<div class="kpicard"><div class="l">Resultado del ejercicio</div><div class="v '+(result<0?'neg':'')+'">'+fmt(result)+'</div></div>'+
+    '<div class="kpicard"><div class="l">Cuentas / nuevas</div><div class="v">'+m.rows.length+' / '+m.news.length+'</div></div>'+
+    '</div>';
+}
+
+// ---- filtros ----
+let FILTERS={tipo:'all',c1:'all',costo:'all',search:'',onlyNew:false};
+function filterOptions(){
+  const c1s=[...new Set(MODEL.rows.map(r=>r.c1).filter(Boolean))].sort();
+  return c1s;
+}
+function applyFilters(rows){
+  return rows.filter(r=>{
+    if(FILTERS.tipo!=='all'&&r.tipo!==FILTERS.tipo)return false;
+    if(FILTERS.c1!=='all'&&r.c1!==FILTERS.c1)return false;
+    if(FILTERS.costo!=='all'){if(FILTERS.costo==='none'){if(r.bucket!=null)return false;}else if(r.bucket!==Number(FILTERS.costo))return false;}
+    if(FILTERS.onlyNew&&!r.isNew)return false;
+    if(FILTERS.search){const q=FILTERS.search.toLowerCase();if(!(r.cuenta.toLowerCase().includes(q)||r.nombre.toLowerCase().includes(q)))return false;}
+    return true;
+  });
+}
+
+// ---- desplegable de clasificacion ----
+function clasifSelect(cuenta){
+  let html='<select class="clasif-sel" data-cuenta="'+cuenta+'" onchange="onClasif(this)">';
+  html+='<option value="">-- clasificar --</option>';
+  for(let i=0;i<COMBOS.length;i++){
+    const c=COMBOS[i];
+    const lbl=c[0]+' / '+c[1]+(c[2]?' / '+c[2]:'')+(c[3]&&c[3]!==c[1]?' / '+c[3]:'');
+    html+='<option value="'+i+'">'+lbl+'</option>';
+  }
+  html+='</select>';
+  return html;
+}
+window.onClasif=function(sel){
+  const cuenta=sel.dataset.cuenta;const idx=sel.value;
+  if(idx===''){return;}
+  const c=COMBOS[Number(idx)];
+  TPL[cuenta]=[c[0],c[1],c[2],c[3]];saveTpl(TPL);
+  // actualizar modelo
+  const row=MODEL.rows.find(r=>r.cuenta===cuenta);
+  if(row){row.tipo=c[0];row.c1=c[1];row.c2=c[2];row.c3=c[3];row.isNew=false;}
+  MODEL.news=MODEL.rows.filter(r=>r.isNew);
+  renderAll();
+};
+
+// ---- tabla principal (ESF + ERI juntos, formato REFERENCIA) ----
+function renderMain(){
+  const m=MODEL;const c=$('#main-content');
+  renderStatus();
+  let html=renderKPI();
+  // barra de filtros
+  html+='<div class="filterbar">'+
+    '<label>Tipo</label><select id="fTipo"><option value="all">Todos</option><option value="ESF">ESF</option><option value="ERI">ERI</option></select>'+
+    '<label>Clasificacion 1</label><select id="fC1"><option value="all">Todas</option>'+filterOptions().map(x=>'<option value="'+x+'">'+x+'</option>').join('')+'</select>'+
+    '<label>Costo</label><select id="fCosto"><option value="all">Todos</option><option value="0">C0</option><option value="1">C1</option><option value="2">C2</option><option value="3">C3</option><option value="none">Sin costo</option></select>'+
+    '<label style="display:flex;align-items:center;gap:4px"><input type="checkbox" id="fNew" style="width:auto"> Solo nuevas</label>'+
+    '<input type="text" id="fSearch" placeholder="Buscar cuenta o nombre" style="width:200px">'+
+    '<span class="count" id="rowCount"></span></div>';
+  html+='<div class="tablewrap"><table><thead><tr>'+
+    '<th>Soc.</th><th>Tipo</th><th>Clasificacion 1</th><th>Clasificacion 2</th><th>Cuenta</th><th>Cuenta GRR3</th><th>Descripcion</th>'+
+    '<th class="num">'+(PERIODS.label||'Periodo')+'</th><th class="num">'+(PERIODS.compLabel||'Comparacion')+'</th><th class="num">Diferencia</th>'+
+    '</tr></thead><tbody id="mainBody"></tbody><tfoot id="mainFoot"></tfoot></table></div>';
+  c.innerHTML=html;
+  // hooks filtros
+  $('#fTipo').value=FILTERS.tipo;$('#fC1').value=FILTERS.c1;$('#fCosto').value=FILTERS.costo;$('#fNew').checked=FILTERS.onlyNew;$('#fSearch').value=FILTERS.search;
+  $('#fTipo').onchange=e=>{FILTERS.tipo=e.target.value;drawBody();};
+  $('#fC1').onchange=e=>{FILTERS.c1=e.target.value;drawBody();};
+  $('#fCosto').onchange=e=>{FILTERS.costo=e.target.value;drawBody();};
+  $('#fNew').onchange=e=>{FILTERS.onlyNew=e.target.checked;drawBody();};
+  $('#fSearch').oninput=e=>{FILTERS.search=e.target.value;drawBody();};
+  drawBody();
+}
+function drawBody(){
+  const rows=applyFilters(MODEL.rows);
+  let html='',lastGroup=null,ta=0,tc=0,td=0;
+  for(const r of rows){
+    const grp=(r.tipo||'SIN CLASIFICAR')+(r.c1?' \u00B7 '+r.c1:'');
+    if(grp!==lastGroup){html+='<tr class="group"><td colspan="10">'+grp+'</td></tr>';lastGroup=grp;}
+    const tipoPill=r.tipo==='ESF'?'<span class="pill esf">ESF</span>':r.tipo==='ERI'?'<span class="pill eri">ERI</span>':'<span class="pill new">NUEVA</span>';
+    const costoCell=r.bucket!=null?'<span class="pill c'+r.bucket+'">C'+r.bucket+'</span>':'';
+    const grrCell=r.grrCode?'<span>'+r.grrCode+'</span>':'';
+    // celdas de clasificacion: editables por clic SOLO si no es fila de costo distribuida
+    let e1,e2;
+    if(r.distributed){
+      const autoTag=r.autoClasif?' <span class="pill warn" title="Auto-clasificada desde GRR3">auto</span>':'';
+      const ajTag=r.ajuste?' <span class="pill warn" title="Ajuste: diferencia entre saldo EEFF y GRR3, sin codigo de cuenta">ajuste</span>':'';
+      e1='<td>'+r.c1+autoTag+ajTag+'</td>';e2='<td>'+(r.c2||(r.ajuste?'<span style="color:#9a988d">(sin costo)</span>':''))+'</td>';
+    }else{
+      e1='<td class="editable" data-cuenta="'+r.cuenta+'" data-field="c1" onclick="editCell(this)">'+(r.c1||'<span style="color:#c0392b">clic para clasificar</span>')+'</td>';
+      e2='<td class="editable" data-cuenta="'+r.cuenta+'" data-field="c2" onclick="editCell(this)">'+(r.c2||'')+'</td>';
+    }
+    html+='<tr class="'+(r.isNew?'new':'')+'" data-row="'+r.cuenta+'">'+
+      '<td class="code">4000</td><td>'+tipoPill+'</td>'+e1+e2+
+      '<td class="code">'+r.cuenta+'</td><td class="grr">'+grrCell+(costoCell?' '+costoCell:'')+'</td>'+
+      '<td>'+r.nombre+'</td>'+
+      '<td class="'+cls(r.actual)+'">'+fmt(r.actual)+'</td><td class="'+cls(r.comp)+'">'+fmt(r.comp)+'</td><td class="'+cls(r.diff)+'">'+fmt(r.diff)+'</td>'+
+      '</tr>';
+    ta+=r.actual;tc+=r.comp;td+=r.diff;
+  }
+  $('#mainBody').innerHTML=html;
+  $('#mainFoot').innerHTML='<tr class="total"><td colspan="7">SUMA FILTRADA</td><td class="'+cls(ta)+'">'+fmt(ta)+'</td><td class="'+cls(tc)+'">'+fmt(tc)+'</td><td class="'+cls(td)+'">'+fmt(td)+'</td></tr>';
+  $('#rowCount').textContent=rows.length+' lineas / '+new Set(rows.map(r=>r.baseCuenta)).size+' cuentas';
+}
+
+// editar clasificacion con clic en celda -> abre desplegable con combos completos
+window.editCell=function(td){
+  if(td.classList.contains('editing'))return;
+  const cuenta=td.dataset.cuenta;
+  const row=MODEL.rows.find(r=>r.cuenta===cuenta);
+  td.classList.add('editing');
+  let html='<select onchange="applyCellClasif(this,\''+cuenta+'\')" onblur="cancelCell(this)">';
+  html+='<option value="">-- elegir clasificacion --</option>';
+  for(let i=0;i<COMBOS.length;i++){const c=COMBOS[i];
+    const lbl=c[0]+' / '+c[1]+(c[2]?' / '+c[2]:'')+(c[3]&&c[3]!==c[1]?' / '+c[3]:'');
+    const sel=(row&&row.tipo===c[0]&&row.c1===c[1]&&row.c2===c[2])?' selected':'';
+    html+='<option value="'+i+'"'+sel+'>'+lbl+'</option>';
+  }
+  html+='</select>';
+  td.innerHTML=html;
+  const s=td.querySelector('select');s.focus();
+};
+window.applyCellClasif=function(sel,cuenta){
+  const idx=sel.value;if(idx===''){return;}
+  const c=COMBOS[Number(idx)];
+  TPL[cuenta]=[c[0],c[1],c[2],c[3]];saveTpl(TPL);
+  const row=MODEL.rows.find(r=>r.cuenta===cuenta);
+  if(row){row.tipo=c[0];row.c1=c[1];row.c2=c[2];row.c3=c[3];row.isNew=false;}
+  MODEL.news=MODEL.rows.filter(r=>r.isNew);
+  renderAll();
+};
+window.cancelCell=function(sel){setTimeout(()=>{if(MODEL)drawBody();},150);};
+
+// ===== RESUMEN MACRO (estilo tabla dinamica de la imagen) =====
+const PT_RATE=0.15;
+function macroTotals(){
+  const m=MODEL;
+  // ESF por Clasificacion 3 (Activo/Pasivo/Patrimonio)
+  const esf={Activo:{a:0,c:0},Pasivo:{a:0,c:0},Patrimonio:{a:0,c:0}};
+  // ERI por Clasificacion 1
+  const eriC1={};
+  for(const r of m.rows){
+    if(r.tipo==='ESF'){
+      let k=r.c3||r.c1;
+      if(k.indexOf('Activo')===0)k='Activo';else if(k.indexOf('Pasivo')===0)k='Pasivo';else if(k.indexOf('Patrimonio')===0)k='Patrimonio';
+      if(esf[k]){esf[k].a+=r.actual;esf[k].c+=r.comp;}
+    }else if(r.tipo==='ERI'){
+      const k=r.c1||'(sin clasificar)';
+      if(!eriC1[k])eriC1[k]={a:0,c:0};
+      eriC1[k].a+=r.actual;eriC1[k].c+=r.comp;
+    }
+  }
+  return {esf,eriC1};
+}
+function renderMacro(){
+  const c=$('#macro-content');const t=macroTotals();
+  const PA=PERIODS.label||'Periodo', PC=PERIODS.compLabel||'Comparacion';
+
+  // --- bloque ESF ---
+  let html='<div class="macro-title">Resumen ESF - Estado de Situacion Financiera</div>';
+  html+='<div class="tablewrap"><table class="macro"><thead><tr><th class="lbl">Clasificacion</th><th class="num">'+PC+'</th><th class="num">'+PA+'</th></tr></thead><tbody>';
+  let gtA=0,gtC=0;
+  for(const k of ['Activo','Pasivo','Patrimonio']){
+    const v=t.esf[k];gtA+=v.a;gtC+=v.c;
+    html+='<tr><td class="rowlbl">'+k+'</td><td class="'+cls(v.c)+'">'+fmt(v.c)+'</td><td class="'+cls(v.a)+'">'+fmt(v.a)+'</td></tr>';
+  }
+  html+='<tr class="gt"><td>Grand Total</td><td class="'+cls(gtC)+'">'+fmt(gtC)+'</td><td class="'+cls(gtA)+'">'+fmt(gtA)+'</td></tr>';
+  html+='</tbody></table></div>';
+
+  // --- bloque ERI (Valores) ---
+  const orderERI=['Cuentas transitorias','Impuesto a la renta','Impuesto a la renta diferido','Otros ingresos','Ingresos ordinarios','Gasto','Costo','Participacion de trabajadores','Otros Ingresos/gasto','Otros gastos'];
+  const keys=Object.keys(t.eriC1);
+  const ordered=orderERI.filter(k=>keys.includes(k)).concat(keys.filter(k=>!orderERI.includes(k)));
+  html+='<div class="macro-title">Resumen ERI - Valores por clasificacion</div>';
+  html+='<div class="tablewrap"><table class="macro"><thead><tr><th class="lbl">Clasificacion 1</th><th class="num">'+PC+'</th><th class="num">'+PA+'</th></tr></thead><tbody>';
+  let egA=0,egC=0;
+  for(const k of ordered){const v=t.eriC1[k];egA+=v.a;egC+=v.c;
+    html+='<tr><td class="rowlbl">'+k+'</td><td class="'+cls(v.c)+'">'+fmt(v.c)+'</td><td class="'+cls(v.a)+'">'+fmt(v.a)+'</td></tr>';
+  }
+  html+='<tr class="gt"><td>Grand Total</td><td class="'+cls(egC)+'">'+fmt(egC)+'</td><td class="'+cls(egA)+'">'+fmt(egA)+'</td></tr>';
+  html+='</tbody></table></div>';
+
+  // --- conciliacion utilidad ---
+  function pick(k){return t.eriC1[k]||{a:0,c:0};}
+  // utilidad contable = -(suma ERI sin participacion ni impuesto renta)
+  function utilContable(side){
+    let s=0;for(const k of keys){if(k==='Participacion de trabajadores'||k==='Impuesto a la renta'||k==='Impuesto a la renta diferido')continue;s+=t.eriC1[k][side];}
+    return -s;
+  }
+  const ucA=utilContable('a'), ucC=utilContable('c');
+  const ptA=pick('Participacion de trabajadores').a, ptC=pick('Participacion de trabajadores').c;
+  const irA=pick('Impuesto a la renta').a+pick('Impuesto a la renta diferido').a;
+  const irC=pick('Impuesto a la renta').c+pick('Impuesto a la renta diferido').c;
+  const resA=ucA-ptA-irA, resC=ucC-ptC-irC;
+  html+='<div class="concil"><div class="tablewrap"><table><thead><tr><th>Conciliacion</th><th class="num">'+PC+'</th><th class="num">'+PA+'</th></tr></thead><tbody>';
+  html+='<tr class="hl"><td>Perdida / (Utilidad) contable</td><td class="'+cls(ucC)+'">'+fmt(ucC)+'</td><td class="'+cls(ucA)+'">'+fmt(ucA)+'</td></tr>';
+  html+='<tr><td>(-) Participacion de trabajadores 15%</td><td class="'+cls(-ptC)+'">'+fmt(-ptC)+'</td><td class="'+cls(-ptA)+'">'+fmt(-ptA)+'</td></tr>';
+  html+='<tr><td>(+/-) Impuesto a la renta corriente y diferido</td><td class="'+cls(-irC)+'">'+fmt(-irC)+'</td><td class="'+cls(-irA)+'">'+fmt(-irA)+'</td></tr>';
+  html+='<tr class="hl"><td>Perdida / (Utilidad) despues de PT e IR</td><td class="'+cls(resC)+'">'+fmt(resC)+'</td><td class="'+cls(resA)+'">'+fmt(resA)+'</td></tr>';
+  html+='</tbody></table></div></div>';
+
+  // --- VALIDACION: participacion debe ser 15% de utilidad contable ---
+  const calcPtA=ucA*PT_RATE, calcPtC=ucC*PT_RATE;
+  const difA=calcPtA-ptA, difC=calcPtC-ptC;
+  const okA=Math.abs(difA)<1, okC=Math.abs(difC)<1;
+  html+='<div class="macro-title">Validacion - Participacion de trabajadores = 15% de la utilidad contable</div>';
+  html+='<div class="valbar">';
+  html+='<div class="valcard '+(okC?'ok':'err')+'"><div class="l">'+PC+' &middot; 15% calculado</div><div class="v">'+fmt(calcPtC)+'</div><div class="l" style="margin-top:6px">Registrado '+fmt(ptC)+' &middot; dif '+fmt(difC)+'</div></div>';
+  html+='<div class="valcard '+(okA?'ok':'err')+'"><div class="l">'+PA+' &middot; 15% calculado</div><div class="v">'+fmt(calcPtA)+'</div><div class="l" style="margin-top:6px">Registrado '+fmt(ptA)+' &middot; dif '+fmt(difA)+'</div></div>';
+  html+='</div>';
+  html+='<p class="note">La validacion compara la participacion registrada contra el 15% de la utilidad contable. Diferencia cercana a cero = correcto.</p>';
+
+  c.innerHTML=html;
+}
+
+function renderAll(){renderMain();renderMacro();renderHist();}
+window.openTplManager=function(){
+  let html='<p class="note">Catalogo de clasificaciones disponibles en los desplegables. Agrega o elimina combinaciones.</p>';
+  html+='<div id="comboList">';
+  for(let i=0;i<COMBOS.length;i++){const c=COMBOS[i];
+    html+='<div class="combo-row"><span class="vals">'+c[0]+' / '+c[1]+(c[2]?' / '+c[2]:'')+'</span><button class="ghost danger sm" onclick="delCombo('+i+')">Eliminar</button></div>';
+  }
+  html+='</div>';
+  html+='<div class="addgrid">'+
+    '<input id="nTipo" placeholder="Tipo (ESF/ERI)"><input id="nC1" placeholder="Clasificacion 1">'+
+    '<input id="nC2" placeholder="Clasificacion 2">'+
+    '</div><button class="primary sm" style="margin-top:8px" onclick="addCombo()">Agregar clasificacion</button>';
+  $('#modalTitle').textContent='Gestionar clasificaciones';
+  $('#modalBody').innerHTML=html;
+  $('#modalBg').classList.add('show');
+};
+window.delCombo=function(i){COMBOS.splice(i,1);saveCombos(COMBOS);openTplManager();};
+window.addCombo=function(){
+  const t=$('#nTipo').value.trim(),c1=$('#nC1').value.trim(),c2=$('#nC2').value.trim();
+  if(!t||!c1){alert('Tipo y Clasificacion 1 son obligatorios.');return;}
+  COMBOS.push([t,c1,c2,c1]);saveCombos(COMBOS);openTplManager(); // c3 interno = c1
+};
+window.closeModal=function(){$('#modalBg').classList.remove('show');if(MODEL)renderMain();};
+
+// ---- periodos guardados ----
+function loadHist(){return HIST||{};}
+function saveHist(o){HIST=o;try{localStorage.setItem(lsKey(STORE_HIST),JSON.stringify(o));}catch(e){}}
+function savePeriod(){
+  if(!MODEL)return;
+  const p=PERIODS.label;
+  if(!p){alert('Elige mes y ano antes de guardar.');return;}
+  const h=loadHist();
+  h[p]={ts:Date.now(),sumA:MODEL.sumA,news:MODEL.news.length,comp:PERIODS.compLabel,
+    rows:MODEL.rows.map(r=>({cuenta:r.cuenta,nombre:r.nombre,tipo:r.tipo,c1:r.c1,c2:r.c2,c3:r.c3,bucket:r.bucket,grrCode:r.grrCode,ajuste:r.ajuste,actual:r.actual,comp:r.comp}))};
+  saveHist(h);
+  if(CLOUD&&CURRENT_CO){cloudSavePeriodDoc(p,h[p]).then(()=>flashSaved('Guardado en la nube: '+p)).catch(e=>{console.warn('cloud period',e);flashSaved('Guardado local (sin nube): '+p);});}
+  else{flashSaved('Guardado: '+p);}
+  renderHist();
+}
+function renderHist(){
+  const h=loadHist();const ks=Object.keys(h);const c=$('#hist-content');
+  if(!ks.length){c.innerHTML='<div class="empty"><div class="big">Aun no hay periodos guardados</div><div>Genera y pulsa Guardar periodo.</div></div>';return;}
+  ks.sort((a,b)=>h[b].ts-h[a].ts);
+  let html='<div class="tablewrap"><table><thead><tr><th>Periodo</th><th>vs</th><th class="num">Suma saldos</th><th>Validacion</th><th class="num">Nuevas</th><th class="num">Cuentas</th><th></th></tr></thead><tbody>';
+  for(const k of ks){const e=h[k];const ok=Math.abs(e.sumA)<0.5;
+    html+='<tr><td><b>'+k+'</b></td><td class="code">'+(e.comp||'-')+'</td><td class="'+cls(e.sumA)+'">'+fmt(e.sumA)+'</td><td>'+(ok?'<span class="pill c0">\u2713 cero</span>':'<span class="pill new">\u2717</span>')+'</td><td class="num">'+e.news+'</td><td class="num">'+e.rows.length+'</td><td><button class="ghost danger sm" onclick="delPeriod(\''+k+'\')">Borrar</button></td></tr>';
+  }
+  html+='</tbody></table></div><p class="note">Periodos guardados en este navegador. Descarga el Excel para respaldar.</p>';
+  c.innerHTML=html;
+}
+window.delPeriod=function(k){if(!confirm('Borrar periodo '+k+'?'))return;const h=loadHist();delete h[k];saveHist(h);if(CLOUD&&CURRENT_CO)cloudDeletePeriodDoc(k).catch(e=>console.warn('cloud del period',e));renderHist();};
+
+// ---- reset plantilla ----
+window.resetTpl=function(){
+  if(!confirm('Restaurar la plantilla original? Se perderan las clasificaciones que agregaste.'))return;
+  TPL=Object.assign({},REF_SEED);COMBOS=COMBOS_SEED.slice();saveTpl(TPL);saveCombos(COMBOS);
+  if(MODEL)build();
+};
+
+// ---- export excel (formato REFERENCIA) ----
+function exportExcel(){
+  if(!MODEL)return;const wb=XLSX.utils.book_new();const p=PERIODS.label||'periodo';
+  const head=['Soc.','Tipo','Clasificacion 1','Clasificacion 2','Cuenta','Cuenta GRR3','Descripcion de la cuenta',PERIODS.label||'Periodo',PERIODS.compLabel||'Comparacion','Diferencia'];
+  const aoa=[head];
+  for(const r of MODEL.rows){
+    aoa.push(['4000',r.tipo,r.c1,r.c2,r.cuenta,r.grrCode,r.nombre,r.actual,r.comp,r.diff]);
+  }
+  aoa.push([]);aoa.push(['','','','','','','','SUMA TODOS LOS SALDOS',MODEL.sumA,MODEL.sumC,'']);
+  aoa.push(['','','','','','','','Validacion (debe ser 0)',Math.abs(MODEL.sumA)<0.5?'OK':'DESCUADRE','','']);
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols']=[{wch:6},{wch:6},{wch:22},{wch:26},{wch:9},{wch:11},{wch:40},{wch:16},{wch:16},{wch:14}];
+  XLSX.utils.book_append_sheet(wb,ws,'EEFF');
+  // hoja resumen macro
+  const t=macroTotals();const PA=PERIODS.label||'Periodo',PC=PERIODS.compLabel||'Comparacion';
+  const mac=[['RESUMEN ESF'],[],['Clasificacion',PC,PA]];
+  let gA=0,gC=0;for(const k of ['Activo','Pasivo','Patrimonio']){const v=t.esf[k];mac.push([k,v.c,v.a]);gA+=v.a;gC+=v.c;}
+  mac.push(['Grand Total',gC,gA]);mac.push([]);mac.push(['RESUMEN ERI']);mac.push(['Clasificacion 1',PC,PA]);
+  let eA=0,eC=0;for(const k of Object.keys(t.eriC1)){const v=t.eriC1[k];mac.push([k,v.c,v.a]);eA+=v.a;eC+=v.c;}
+  mac.push(['Grand Total',eC,eA]);
+  // conciliacion + validacion
+  const ks=Object.keys(t.eriC1);
+  const uc=s=>{let x=0;for(const k of ks){if(k==='Participacion de trabajadores'||k==='Impuesto a la renta'||k==='Impuesto a la renta diferido')continue;x+=t.eriC1[k][s];}return -x;};
+  const ucA=uc('a'),ucC=uc('c');
+  const ptA=(t.eriC1['Participacion de trabajadores']||{a:0}).a,ptC=(t.eriC1['Participacion de trabajadores']||{c:0}).c;
+  mac.push([]);mac.push(['CONCILIACION',PC,PA]);
+  mac.push(['Utilidad contable',ucC,ucA]);
+  mac.push(['Participacion 15% calculada',ucC*0.15,ucA*0.15]);
+  mac.push(['Participacion registrada',ptC,ptA]);
+  mac.push(['Validacion (dif debe ser 0)',ucC*0.15-ptC,ucA*0.15-ptA]);
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(mac),'Resumen macro');
+  // hoja historico
+  const h=loadHist();const hks=Object.keys(h);
+  if(hks.length){const hh=[['HISTORICO'],[],['Periodo','vs','Suma saldos','Validacion','Nuevas']];hks.sort();for(const k of hks){const e=h[k];hh.push([k,e.comp||'',e.sumA,Math.abs(e.sumA)<0.5?'Cero':'Descuadre',e.news]);}XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(hh),'Historico');}
+  XLSX.writeFile(wb,'EEFF_'+String(p).replace(/\s/g,'')+'.xlsx');
+}
+
+// ---- tabs ----
+$$('.tab').forEach(t=>t.addEventListener('click',()=>{
+  $$('.tab').forEach(x=>x.classList.remove('active'));
+  $$('.panel').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');$('#panel-'+t.dataset.tab).classList.add('active');
+}));
+$('#btnBuild').addEventListener('click',build);
+$('#btnSave').addEventListener('click',savePeriod);
+$('#btnExport').addEventListener('click',exportExcel);
+function updatePeriod(){
+  const m=$('#periodMonth').value, y=$('#periodYear').value.trim();
+  PERIODS.month=m;PERIODS.year=y;
+  PERIODS.label=(m&&y)?periodKey(m,y):'';
+  if(MODEL)build(); // recalcula comparativo con el periodo elegido
+}
+$('#periodMonth').addEventListener('change',updatePeriod);
+$('#periodYear').addEventListener('input',updatePeriod);
+
+// ---- arranque ----
+if(CLOUD && typeof firebase!=='undefined' && firebase.auth){
+  firebase.auth().onAuthStateChanged(u=>{
+    AUTH_USER=u;
+    if(u){
+      hideLogin();
+      const lo=$('#btnLogout');if(lo){lo.style.display='inline-block';lo.title=u.email||'';lo.onclick=doLogout;}
+      bootstrap();
+    }else{
+      showLogin();
+    }
+  });
+}else{
+  bootstrap();
+}
+</script>
+</body>
+</html>
